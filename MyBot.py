@@ -30,11 +30,14 @@ game.ready("R")
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
-FILL_RATIO = 0.5 # For now we accept 80% fill rate
+FILL_RATIO = 0.75 # For now we accept 80% fill rate
+directions = {"n": (0, 1),
+              "e": (1, 0),
+              "s": (0, -1),
+              "w": (-1, 0)}
 
-
-def closest_cell_with_ratio_fill(resource_map, ship):
-    minimum = 0.25 * (constants.MAX_HALITE - ship.halite_amount) * FILL_RATIO
+def closest_cell_with_ratio_fill(resource_map, resource_max, ship):
+    minimum = 0.25 * (resource_max - ship.halite_amount) * FILL_RATIO
     current_offset = 0
     found = False
     pos = ship.position
@@ -47,7 +50,7 @@ def closest_cell_with_ratio_fill(resource_map, ship):
         found = True
 
     # Search with an expanding ring
-    while not found and current_offset < 7: #game_map.height and current_offset < game_map.width: # possible max search range
+    while not found and game_map.height and current_offset < game_map.width: # possible max search range
         logging.error(f"---------- CURRENT OFFSET: {current_offset}")
 
         offsets = list(range(-current_offset, current_offset + 1))
@@ -96,11 +99,11 @@ while True:
     dropoffs = me.get_dropoffs()
 
     logging.info("Dropoffs: {}".format(dropoffs))
-    new_ship_positions = []
 
     # print("Building resource map...")
     # Build the resource map
     resource_map = []
+    resource_max = 0
     for row in range(game_map.height):
         row_resources = []
         for col in range(game_map.width):
@@ -110,36 +113,66 @@ while True:
             resources = 0
             if cell.is_occupied:
                 logging.debug(f"SHIP DATA -------------------------------------- {cell.ship.owner} - {me.id}")
-                if cell.ship.owner != me.id:
+                if cell.ship.owner != me.id or Position(row, col) == me.shipyard.position:
                     cell.mark_unsafe(cell.ship)
                 else:
                     resources = cell.halite_amount
+                    if resources > resource_max:
+                        resource_max = resources
             else:
                 resources = cell.halite_amount
-
+                if resources > resource_max:
+                    resource_max = resources
             row_resources.append(resources)
 
         resource_map.append(row_resources)
 
     logging.debug(f"{resource_map}")
 
+    new_ship_positions = []
+
     # print(f"SHIPS: {me.get_ships()}")
-    for ship in me.get_ships():
+    all_ships = me.get_ships()
+    random.shuffle(all_ships)
+    for ship in all_ships:
         # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
         #   Else, collect halite.
-        if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
+        if ship.position == me.shipyard.position:
+            # Find a safe way to get out of here
+            dirs = ((-1, 0), (1, 0), (0, -1), (0, 1))
+            new_dir = None
+            for d in dirs:
+                if game_map[me.shipyard.position.directional_offset(d)].is_empty:
+                    new_dir = Direction.convert(d)
+
+            if not new_dir: # Blocked on all sides...
+                # TODO: this is a temporary workaround
+                new_dir = Direction.convert(d)
+
+        elif ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
             # direction = random.choice(Direction.get_all_cardinals())
             logging.warning("SHIP AMOUNT CASE")
             new_dir = game_map.naive_navigate(ship, me.shipyard.position) #dropoffs[0]) # 1 dropoff for now
         else:
             # print("getting target")
-            target = closest_cell_with_ratio_fill(resource_map, ship)
+            target = closest_cell_with_ratio_fill(resource_map, resource_max, ship)
             # print("getting direction")
             new_dir = game_map.naive_navigate(ship, target)
             # print(f"Direction: {new_dir}, {type(new_dir)}")
             # direction = random.choice(Direction.get_all_cardinals())
 
-        command_queue.append(ship.move(new_dir))
+        logging.debug(f"New direction: {new_dir}")
+        d = new_dir
+        if type(d) is not tuple:
+            d = directions[d]
+
+        new_position = ship.position.directional_offset(d)
+
+        if (new_position.x, new_position.y) not in new_ship_positions:
+            new_ship_positions.append((new_position.x, new_position.y))
+            command_queue.append(ship.move(new_dir))
+        else:
+            command_queue.append(ship.stay_still())
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
