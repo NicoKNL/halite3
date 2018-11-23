@@ -1,3 +1,6 @@
+# halite3 replay folder
+replays/
+
 # PyCharm crap
 .idea/
 venv/
