@@ -39,9 +39,16 @@ def closest_cell_with_ratio_fill(resource_map, ship):
     found = False
     pos = ship.position
     target = None
+
+    logging.info(f"{minimum} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
+    for row in resource_map:
+        logging.debug(f"{row}")
+    if resource_map[ship.position.x][ship.position.y] >= minimum:
+        found = True
+
     # Search with an expanding ring
     while not found and current_offset < 7: #game_map.height and current_offset < game_map.width: # possible max search range
-        # logging.error(f"---------- CURRENT OFFSET: {current_offset}")
+        logging.error(f"---------- CURRENT OFFSET: {current_offset}")
 
         offsets = list(range(-current_offset, current_offset + 1))
         offsets = [(x, y) for x in offsets for y in offsets]
@@ -63,11 +70,10 @@ def closest_cell_with_ratio_fill(resource_map, ship):
 
     if not target:
         target = ship.position
-        # print("target not found!")
+        logging.info("target not found!")
 
     else:
-        pass
-        # print(f"target found!: {target}")
+        logging.info(f"target found!: {target}")
     return target
 
 
@@ -103,9 +109,11 @@ while True:
             # Test if an enemy is already on this resource
             resources = 0
             if cell.is_occupied:
-                pass
-                # if cell.ship.owner != me:
-                #     cell.mark_unsafe(cell.ship)
+                logging.debug(f"SHIP DATA -------------------------------------- {cell.ship.owner} - {me.id}")
+                if cell.ship.owner != me.id:
+                    cell.mark_unsafe(cell.ship)
+                else:
+                    resources = cell.halite_amount
             else:
                 resources = cell.halite_amount
 
@@ -113,7 +121,7 @@ while True:
 
         resource_map.append(row_resources)
 
-    # # print(f"{resource_map}")
+    logging.debug(f"{resource_map}")
 
     # print(f"SHIPS: {me.get_ships()}")
     for ship in me.get_ships():
@@ -121,8 +129,8 @@ while True:
         #   Else, collect halite.
         if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
             # direction = random.choice(Direction.get_all_cardinals())
-            # print("SHIP AMOUNT CASE")
-            new_dir = game_map.naive_navigate(ship, dropoffs[0]) # 1 dropoff for now
+            logging.warning("SHIP AMOUNT CASE")
+            new_dir = game_map.naive_navigate(ship, me.shipyard.position) #dropoffs[0]) # 1 dropoff for now
         else:
             # print("getting target")
             target = closest_cell_with_ratio_fill(resource_map, ship)
@@ -137,9 +145,8 @@ while True:
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
     # print(f"{game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied}")
     if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
-        # # print("Spawning new ship")
+        logging.info("Spawning new ship")
         command_queue.append(me.shipyard.spawn())
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
-
