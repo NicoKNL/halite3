@@ -36,6 +36,7 @@ directions = {"n": (0, 1),
               "s": (0, -1),
               "w": (-1, 0)}
 
+
 def closest_cell_with_ratio_fill(resource_map, resource_max, ship):
     minimum = 0.25 * (resource_max - ship.halite_amount) * FILL_RATIO
     current_offset = 0
