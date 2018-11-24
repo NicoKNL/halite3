@@ -40,6 +40,7 @@ directions = {"n": (0, -1),
               "w": (-1, 0)}
 
 ship_actions = {}
+ship_directions = {}
 
 
 def shipyard_cleanup(resource_map, ship, shipyard):
@@ -52,22 +53,40 @@ def shipyard_cleanup(resource_map, ship, shipyard):
 
     ship_actions[ship] = action
 
-    if action:
-        target = ship.position
-        root_value = resource_map[target.x][target.y].w
-        staying_value = root_value // 4
-        moving_cost = root_value // 10
+    if ship in ship_directions.keys():
+        turn_in = ship_directions[ship]
+    elif ship.position == shipyard.position:
+        turn_in = False
+    else:
+        turn_in = False
 
-        if moving_cost < ship.halite_amount:
-            for d in directions.values():
-                pos = game_map.normalize(ship.position.directional_offset(d))
-                if game_map.calculate_distance(ship.position, shipyard.position) < 5:
-                    w = resource_map[pos.x][pos.y].w
-                    if w // 4 + ship.halite_amount - moving_cost > ship.halite_amount + staying_value:
-                        target = pos
+    ship_directions[ship] = turn_in
+
+    if action:
+        if turn_in:
+            target = shipyard.position
+        else:
+            target = ship.position
+            max_value = resource_map[target.x][target.y].w
+            staying_value = max_value // 4
+            moving_cost = max_value // 10
+
+            if moving_cost < ship.halite_amount or moving_cost == 0:
+                for d in directions.values():
+                    pos = game_map.normalize(ship.position.directional_offset(d))
+                    logging.debug(f"pos: {pos} | {game_map.calculate_distance(ship.position, shipyard.position) <= 5} | {resource_map[pos.x][pos.y].w}")
+                    if game_map.calculate_distance(pos, shipyard.position) <= 5:
+                        w = resource_map[pos.x][pos.y].w
+                        if (w // 4) - moving_cost > staying_value and w > max_value:
+                            max_value = w
+                            target = pos
+
+                if game_map.calculate_distance(ship.position, shipyard.position) == 5:
+                    ship_directions[ship] = True  # Start turning in
     else:
         target = ship.position
 
+    logging.debug(f"decision: {target}")
     return target
 
 
