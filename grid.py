@@ -69,4 +69,5 @@ class Cell(object):
             else:
                 return Entity.ENEMY
 
-
+    def set_weight(self, w):
+        self.w = w
