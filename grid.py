@@ -52,6 +52,10 @@ class Cell(object):
 
         self.entity = self.get_entity()
 
+        # Dijkstra support
+        self.dist = None
+        self.prev = None
+
     def get_entity(self):
         if self._game_cell.is_empty:
             return Entity.NONE
