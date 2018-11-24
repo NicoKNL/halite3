@@ -34,9 +34,9 @@ logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 FILL_RATIO = 0.75 # For now we accept 80% fill rate
 INF = 99999999
-directions = {"n": (0, 1),
+directions = {"n": (0, -1),
               "e": (1, 0),
-              "s": (0, -1),
+              "s": (0, 1),
               "w": (-1, 0)}
 
 
@@ -127,7 +127,7 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
                 continue
             x = a.x + offset_x * xdir
             y = a.y + offset_y * ydir
-            logging.debug(f"-------------------------setting {(x, y)}")
+            # logging.debug(f"-------------------------setting {(x, y)}")
             grid[x][y].dist = INF
             grid[x][y].prev = None
             queue.append(grid[x][y])
@@ -139,7 +139,7 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
         # logging.debug(f"::QUEUE SRT:: {[(q.x, q.y) for q in queue]}")
         queue.pop(queue.index(node))
 
-        logging.debug(f"Starting on: {(node.x, node.y)}")
+        # logging.debug(f"Starting on: {(node.x, node.y)}")
         for d in directions.values():
             neighbour_x = (node.x + d[0]) % grid_width
             neighbour_y = (node.y + d[1]) % grid_height
@@ -147,18 +147,18 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
             logging.debug(f"{(a.x, a.y)} | {(b.x, b.y)} =>? {(neighbour_x, neighbour_y)}")
             # validate cell is within bounds
             if neighbour_x in rx and neighbour_y in ry:
-                logging.debug("entered")
+                # logging.debug("entered")
                 neighbour = grid[neighbour_x][neighbour_y]
 
                 if neighbour == a:
-                    logging.debug("encountered root")
+                    # logging.debug("encountered root")
                     continue
                 if node.prev:
                     if neighbour == node.prev:
-                        logging.debug("backtracking block")
+                        # logging.debug("backtracking block")
                         continue
 
-                logging.debug("after root and backtracking check")
+                # logging.debug("after root and backtracking check")
                 alt_dist = node.dist + neighbour.tw
                 if alt_dist < neighbour.dist or neighbour.dist == INF:
                     neighbour.dist = alt_dist
@@ -235,10 +235,10 @@ while True:
     # logging.debug(f"{resource_map}")
 
     new_ship_positions = []
-
+    ship_position_map = []  # (ship, target)
     # print(f"SHIPS: {me.get_ships()}")
     all_ships = me.get_ships()
-    random.shuffle(all_ships)
+    # random.shuffle(all_ships)
     for ship in all_ships:
         # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
         #   Else, collect halite.
@@ -280,13 +280,54 @@ while True:
         new_position = game_map.normalize(ship.position.directional_offset(d))
         grid.grid[new_position.x][new_position.y].set_weight(-INF)
         grid.grid[new_position.x][new_position.y].set_travel_weight(INF)
-        command_queue.append(ship.move(new_dir))
+
+        new_ship_positions.append(new_position)
+        ship_position_map.append((ship, new_position, d))
+
+    # temporary solution to resolve collisions
+
+    logging.debug("============= COLLISION SOLVER 1.0 =============")
+    solved = False
+
+    while not solved:
+        collision_detected = False
+
+        all_new_positions = [p for _, p, __ in ship_position_map]
+        logging.debug(f"anp: {all_new_positions}")
+        for s, p, _ in ship_position_map:
+            if all_new_positions.count(p) > 1:
+                # Collision detected
+                logging.debug("........ COLLISION DETECTED ..........")
+
+                collision_detected = True
+
+        if not collision_detected:
+            logging.debug("============= COLLISIONS SOLVED!~~~ =============")
+
+            solved = True
+        else:
+            tmp_map = []
+            for s, p, d in ship_position_map:
+                if all_new_positions.count(p) == 1:
+                    tmp_map.append((s, p, d))
+                else:
+                    d = random.choice(Direction.get_all_cardinals())
+                    p = s.position.directional_offset(d)
+                    tmp_map.append((s, p, d))
+
+            logging.debug(f"tmp: {[p for _, p, __ in tmp_map]}")
+
+            ship_position_map = tmp_map
+
+    # Building ship command queue
+    for s, p, d in ship_position_map:
+        command_queue.append(s.move(d))
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
     # print(f"{game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied}")
-    if ship_count < 5:
-        if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if ship_count < 3:
+        if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and me.shipyard.position not in all_new_positions:
             logging.info("Spawning new ship")
             command_queue.append(me.shipyard.spawn())
             ship_count += 1
