@@ -1,5 +1,7 @@
-# halite3 replay folder
+# halite3 stuff
+*.zip
 replays/
+docs/
 
 # PyCharm crap
 .idea/
