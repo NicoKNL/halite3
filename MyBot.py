@@ -81,6 +81,52 @@ def closest_cell_with_ratio_fill(resource_map, resource_max, ship):
     return target
 
 
+def dijkstra_a_to_b(grid, a, b, offset=0):
+    grid_width = len(grid[0])
+    grid_height = len(grid)
+
+    dx = b.x - a.x
+    dy = b.y - b.x
+
+    xdir = 1 if dx > 0 else -1
+    ydir = 1 if dy > 0 else -1
+
+    # initialize distances
+    a.dist = 0
+    queue = []
+
+    for offset_x in range(dx):
+        for offset_y in range(dy):
+            x = a.x + offset_x * xdir
+            y = a.y + offset_y * ydir
+            grid[x][y].dist = -1 # -1 => infinity
+            grid[x][y].prev = None
+            queue.append(grid[x][y])
+
+    while len(queue):
+        node = sorted(queue, key=lambda n: n.dist)
+        queue.pop(queue.index(node))
+
+        for d in directions.values():
+            neighbour_x = (node.x + d[0]) % grid_width
+            neighbour_y = (node.y + d[1]) % grid_height
+            # validate cell is within bounds
+            if (a.x >= neighbour_x and neighbour_x >= b.x and a.y >= neighbour_y and neighbour_y >= b.y) or \
+                (b.x >= neighbour_x and neighbour_x >= a.x and b.y >= neighbour_y and neighbour_y >= a.y):
+                neighbour = grid[neighbour_x][neighbour_y]
+                alt_dist = node.dist + neighbour.w
+                if alt_dist < neighbour.dist or neighbour.dist == -1:
+                    neighbour.dist = alt_dist
+                    neighbour.prev = node
+
+    path_node = b
+    while path_node != a:
+        prev_path_node = path_node.prev
+        if prev_path_node == a:
+            return Direction.convert((path_node.x - a.x, path_node.y - a.y))
+        path_node = prev_path_node
+
+
 """ <<<Game Loop>>> """
 
 
