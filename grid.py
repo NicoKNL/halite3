@@ -1,6 +1,8 @@
 from hlt.positionals import Position
 from enum import Enum
 
+INF = 999999999
+
 
 class Entity(Enum):
     NONE = 0
@@ -49,6 +51,7 @@ class Cell(object):
         self.y = self.pos.y
 
         self.w = self._game_cell.halite_amount
+        self.tw = self.w  # travel weight
 
         self.entity = self.get_entity()
 
@@ -65,13 +68,18 @@ class Cell(object):
             if ship.owner == self._player:
                 return Entity.FRIEND
             else:
+                self.tw = INF
                 return Entity.ENEMY
 
         else: # Shipyard (later on also dropoffs)
             if self._game_cell.structure.owner == self._player:
                 return Entity.SHIPYARD
             else:
+                self.tw = INF
                 return Entity.ENEMY
 
     def set_weight(self, w):
         self.w = w
+
+    def set_travel_weight(self, tw):
+        self.tw = tw

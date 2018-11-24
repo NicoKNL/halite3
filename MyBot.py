@@ -41,15 +41,17 @@ directions = {"n": (0, 1),
 
 
 def closest_cell_with_ratio_fill(resource_map, ship):
-    minimum = 0.25 * (grid.max_w - ship.halite_amount) * FILL_RATIO
+    minimum = 0.25 * (resource_map.max_w - ship.halite_amount) * FILL_RATIO
+    logging.debug(f"res max: {resource_map.max_w}")
+    resource_map = resource_map.grid
     current_offset = 0
     found = False
     pos = ship.position
     target = None
 
     logging.info(f"{minimum} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
-    for row in resource_map:
-        logging.debug(f"{row}")
+    # for row in resource_map:
+    #     logging.debug(f"{row}")
     if resource_map[ship.position.x][ship.position.y].w >= minimum:
         found = True
 
@@ -84,16 +86,14 @@ def closest_cell_with_ratio_fill(resource_map, ship):
     return target
 
 
-def dijkstra_a_to_b(grid, a, b, offset=0):
+def dijkstra_a_to_b(grid, a, b, offset=1):
+    # offset expands the grid bounds upon which we execute dijkstra. By having 1, we can always go around 1 other ship.
     # Assume a and b are only positions, not cells from the grid
     a = grid[a.x][a.y]
     b = grid[b.x][b.y]
 
     # Edge case
     if a.pos == b.pos:
-        return Direction.Still
-
-    if b.w == INF:
         return Direction.Still
 
     grid_width = len(grid[0])
@@ -133,10 +133,10 @@ def dijkstra_a_to_b(grid, a, b, offset=0):
             queue.append(grid[x][y])
 
     while len(queue):
-        logging.debug(f"::QUEUE:: {queue}")
-        logging.debug(f"::QUEUE POS:: {[(q.x, q.y) for q in queue]}")
+        # logging.debug(f"::QUEUE:: {queue}")
+        # logging.debug(f"::QUEUE POS:: {[(q.x, q.y) for q in queue]}")
         node = sorted(queue, key=lambda n: n.dist)[0]
-        logging.debug(f"::QUEUE SRT:: {[(q.x, q.y) for q in queue]}")
+        # logging.debug(f"::QUEUE SRT:: {[(q.x, q.y) for q in queue]}")
         queue.pop(queue.index(node))
 
         logging.debug(f"Starting on: {(node.x, node.y)}")
@@ -153,8 +153,13 @@ def dijkstra_a_to_b(grid, a, b, offset=0):
                 if neighbour == a:
                     logging.debug("encountered root")
                     continue
+                if node.prev:
+                    if neighbour == node.prev:
+                        logging.debug("backtracking block")
+                        continue
 
-                alt_dist = node.dist + neighbour.w
+                logging.debug("after root and backtracking check")
+                alt_dist = node.dist + neighbour.tw
                 if alt_dist < neighbour.dist or neighbour.dist == INF:
                     neighbour.dist = alt_dist
                     neighbour.prev = node
@@ -167,10 +172,15 @@ def dijkstra_a_to_b(grid, a, b, offset=0):
 
     logging.debug(f"path node b: {b} | {path_node}")
     while path_node != a:
-        logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev}")
+        logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev} | {a}")
         prev_path_node = path_node.prev
         if prev_path_node == a:
-            return Direction.convert((path_node.x - a.x, path_node.y - a.y))
+            logging.debug(f"Conversion: {(path_node.x, path_node.y)} and {(a.x, a.y)} | {(path_node.x - a.x, path_node.y - a.y)}")
+            try:
+                return Direction.convert((path_node.x - a.x, path_node.y - a.y))
+            except:
+                return Direction.convert(((path_node.x - a.x) % grid_width, (path_node.y - a.y) % grid_height))
+
         path_node = prev_path_node
 
 
@@ -247,10 +257,14 @@ while True:
         if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
             # direction = random.choice(Direction.get_all_cardinals())
             logging.warning("SHIP AMOUNT CASE")
-            new_dir = game_map.naive_navigate(ship, me.shipyard.position) #dropoffs[0]) # 1 dropoff for now
+            # new_dir = game_map.naive_navigate(ship, me.shipyard.position) #dropoffs[0]) # 1 dropoff for now
+            new_dir = dijkstra_a_to_b(grid.grid, ship.position, me.shipyard.position)
+
         else:
             # print("getting target")
-            target = closest_cell_with_ratio_fill(grid.grid, ship)
+            target = closest_cell_with_ratio_fill(grid, ship)
+            grid.grid[target.x][target.y].set_weight(-INF)
+            # grid.grid[target.x][target.y].set_travel_weight(INF)
             # print("getting direction")
             # new_dir = game_map.naive_navigate(ship, target)
             new_dir = dijkstra_a_to_b(grid.grid, ship.position, target)
@@ -263,14 +277,15 @@ while True:
         if not isinstance(d, tuple):
             d = directions[d]
 
-        new_position = ship.position.directional_offset(d)
-        grid.grid[new_position.x][new_position.y].set_weight(INF)
+        new_position = game_map.normalize(ship.position.directional_offset(d))
+        grid.grid[new_position.x][new_position.y].set_weight(-INF)
+        grid.grid[new_position.x][new_position.y].set_travel_weight(INF)
         command_queue.append(ship.move(new_dir))
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
     # print(f"{game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied}")
-    if ship_count < 2:
+    if ship_count < 5:
         if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
             logging.info("Spawning new ship")
             command_queue.append(me.shipyard.spawn())
