@@ -39,6 +39,37 @@ directions = {"n": (0, -1),
               "s": (0, 1),
               "w": (-1, 0)}
 
+ship_actions = {}
+
+
+def shipyard_cleanup(resource_map, ship, shipyard):
+    resource_map = resource_map.grid
+
+    if ship in ship_actions.keys():
+        action = not ship_actions[ship]
+    else:
+        action = True
+
+    ship_actions[ship] = action
+
+    if action:
+        target = ship.position
+        root_value = resource_map[target.x][target.y].w
+        staying_value = root_value // 4
+        moving_cost = root_value // 10
+
+        if moving_cost <= ship.halite_amount:
+            for d in directions.values():
+                pos = game_map.normalize(ship.position.directional_offset(d))
+                if game_map.calculate_distance(ship.position, shipyard.position) < 5:
+                    w = resource_map[pos.x][pos.y].w
+                    if w // 4 + ship.halite_amount - moving_cost > ship.halite_amount + staying_value:
+                        target = pos
+    else:
+        target = ship.position
+
+    return target
+
 
 def closest_cell_with_ratio_fill(resource_map, ship):
     minimum = 0.25 * (resource_map.max_w - ship.halite_amount) * FILL_RATIO
@@ -199,80 +230,34 @@ while True:
     #   end of the turn.
     command_queue = []
 
-    dropoffs = me.get_dropoffs()
+    # dropoffs = me.get_dropoffs()
+    # logging.info("Dropoffs: {}".format(dropoffs))
 
-    logging.info("Dropoffs: {}".format(dropoffs))
-
-    # print("Building resource map...")
     # Build the resource map
     grid = Grid(game_map, me)
 
-    # resource_map = []
-    # resource_max = 0
-    # for row in range(game_map.height):
-    #     row_resources = []
-    #     for col in range(game_map.width):
-    #         cell = game_map[Position(row, col)]
-    #
-    #         # Test if an enemy is already on this resource
-    #         resources = 0
-    #         if cell.is_occupied:
-    #             logging.debug(f"SHIP DATA -------------------------------------- {cell.ship.owner} - {me.id}")
-    #             if cell.ship.owner != me.id or Position(row, col) == me.shipyard.position:
-    #                 cell.mark_unsafe(cell.ship)
-    #             else:
-    #                 resources = cell.halite_amount
-    #                 if resources > resource_max:
-    #                     resource_max = resources
-    #         else:
-    #             resources = cell.halite_amount
-    #             if resources > resource_max:
-    #                 resource_max = resources
-    #         row_resources.append(resources)
-    #
-    #     resource_map.append(row_resources)
-
-    # logging.debug(f"{resource_map}")
-
     new_ship_positions = []
     ship_position_map = []  # (ship, target)
-    # print(f"SHIPS: {me.get_ships()}")
     all_ships = me.get_ships()
-    # random.shuffle(all_ships)
     for ship in all_ships:
-        # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
-        #   Else, collect halite.
-        # if ship.position == me.shipyard.position:
-        #     # Find a safe way to get out of here
-        #     dirs = ((-1, 0), (1, 0), (0, -1), (0, 1))
-        #     new_dir = None
-        #     for d in dirs:
-        #         if game_map[me.shipyard.position.directional_offset(d)].is_empty:
-        #             new_dir = Direction.convert(d)
-        #
-        #     if not new_dir: # Blocked on all sides...
-        #         # TODO: this is a temporary workaround
-        #         new_dir = Direction.convert(d)
-
+        # Case: Ship is "full" above threshold
         if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
-            # direction = random.choice(Direction.get_all_cardinals())
-            logging.warning("SHIP AMOUNT CASE")
-            # new_dir = game_map.naive_navigate(ship, me.shipyard.position) #dropoffs[0]) # 1 dropoff for now
             new_dir = dijkstra_a_to_b(grid.grid, ship.position, me.shipyard.position)
 
+        # Case: Gather more resources
         else:
-            # print("getting target")
-            target = closest_cell_with_ratio_fill(grid, ship)
+            # Early game
+            if game.turn_number < 125:
+                target = shipyard_cleanup(grid, ship, me.shipyard)
+
+            # Mid and late game
+            else:
+                target = closest_cell_with_ratio_fill(grid, ship)
+
             grid.grid[target.x][target.y].set_weight(-INF)
-            # grid.grid[target.x][target.y].set_travel_weight(INF)
-            # print("getting direction")
-            # new_dir = game_map.naive_navigate(ship, target)
             new_dir = dijkstra_a_to_b(grid.grid, ship.position, target)
             logging.debug(f"new dijkstra dir: {new_dir}")
-            # print(f"Direction: {new_dir}, {type(new_dir)}")
-            # direction = random.choice(Direction.get_all_cardinals())
 
-        logging.debug(f"New direction: {new_dir}")
         d = new_dir
         if not isinstance(d, tuple):
             d = directions[d]
@@ -285,7 +270,6 @@ while True:
         ship_position_map.append((ship, new_position, d))
 
     # temporary solution to resolve collisions
-
     logging.debug("============= COLLISION SOLVER 1.0 =============")
     solved = False
 
