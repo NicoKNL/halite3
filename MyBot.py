@@ -293,8 +293,10 @@ while True:
         collision_detected = False
 
         all_new_positions = [p for _, p, __ in ship_position_map]
-        logging.debug(f"anp: {all_new_positions}")
+        logging.debug(f"position combos: {[(s.position, p) for s, p, _ in ship_position_map]}")
         for s, p, _ in ship_position_map:
+            logging.debug(f"testing: {p} | anpCount: {all_new_positions.count(p)}")
+            logging.debug(f"{all_new_positions}")
             if all_new_positions.count(p) > 1:
                 # Collision detected
                 logging.debug("........ COLLISION DETECTED ..........")
@@ -321,6 +323,7 @@ while True:
 
     # Building ship command queue
     for s, p, d in ship_position_map:
+        logging.debug(f"position combos: {[(s.position, p) for s, p, _ in ship_position_map]}")
         command_queue.append(s.move(d))
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
