@@ -297,9 +297,15 @@ while True:
                 if all_new_positions.count(p) == 1:
                     tmp_map.append((s, p, d))
                 else:
-                    d = random.choice(Direction.get_all_cardinals())
-                    p = s.position.directional_offset(d)
-                    tmp_map.append((s, p, d))
+                    new_d = random.choice(Direction.get_all_cardinals())
+                    new_p = game_map.normalize(s.position.directional_offset(new_d))
+
+                    # See if we can make the move
+                    moving_cost = grid.grid[s.position.x][s.position.y].w // 10
+                    if moving_cost <= s.halite_amount:
+                        tmp_map.append((s, new_p, new_d))
+                    else:
+                        tmp_map.append((s, p, d))
 
             logging.debug(f"tmp: {[p for _, p, __ in tmp_map]}")
 
