@@ -58,7 +58,7 @@ def shipyard_cleanup(resource_map, ship, shipyard):
         staying_value = root_value // 4
         moving_cost = root_value // 10
 
-        if moving_cost <= ship.halite_amount:
+        if moving_cost < ship.halite_amount:
             for d in directions.values():
                 pos = game_map.normalize(ship.position.directional_offset(d))
                 if game_map.calculate_distance(ship.position, shipyard.position) < 5:
@@ -302,7 +302,7 @@ while True:
 
                     # See if we can make the move
                     moving_cost = grid.grid[s.position.x][s.position.y].w // 10
-                    if moving_cost <= s.halite_amount:
+                    if moving_cost < s.halite_amount:
                         tmp_map.append((s, new_p, new_d))
                     else:
                         tmp_map.append((s, p, d))
