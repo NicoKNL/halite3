@@ -176,10 +176,10 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
         prev_path_node = path_node.prev
         if prev_path_node == a:
             logging.debug(f"Conversion: {(path_node.x, path_node.y)} and {(a.x, a.y)} | {(path_node.x - a.x, path_node.y - a.y)}")
-            try:
-                return Direction.convert((path_node.x - a.x, path_node.y - a.y))
-            except:
-                return Direction.convert(((path_node.x - a.x) % grid_width, (path_node.y - a.y) % grid_height))
+            for d in directions.values():
+                logging.debug(f"dir test: {d} | {a.pos.directional_offset(d)} | {path_node.pos}")
+                if game_map.normalize(a.pos.directional_offset(d)) == path_node.pos:
+                    return Direction.convert(d)
 
         path_node = prev_path_node
 
@@ -326,11 +326,10 @@ while True:
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
     # print(f"{game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied}")
-    if ship_count < 3:
-        if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and me.shipyard.position not in all_new_positions:
-            logging.info("Spawning new ship")
-            command_queue.append(me.shipyard.spawn())
-            ship_count += 1
+    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and me.shipyard.position not in [p for _, p, __ in ship_position_map]:
+        logging.info("Spawning new ship")
+        command_queue.append(me.shipyard.spawn())
+        ship_count += 1
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
