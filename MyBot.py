@@ -175,7 +175,7 @@ def dijkstra_a_to_b(grid, a, b, offset=0):
 
 
 """ <<<Game Loop>>> """
-
+ship_count = 0
 
 while True:
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
@@ -270,9 +270,11 @@ while True:
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
     # print(f"{game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied}")
-    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
-        logging.info("Spawning new ship")
-        command_queue.append(me.shipyard.spawn())
+    if ship_count < 2:
+        if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+            logging.info("Spawning new ship")
+            command_queue.append(me.shipyard.spawn())
+            ship_count += 1
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
