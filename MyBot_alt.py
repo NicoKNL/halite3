@@ -28,7 +28,7 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("R")
+game.ready("ALT")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
@@ -95,23 +95,20 @@ def shipyard_cleanup(resource_map, ship, shipyard):
 def closest_cell_with_ratio_fill(resource_map, ship):
     t = time.time()
 
-    minimum = 0.25 * (resource_map.max_w - ship.halite_amount) * FILL_RATIO
-    # logging.debug(f"res max: {resource_map.max_w}")
+    minimum = min(0.75 * resource_map.max_w, 4 * (constants.MAX_HALITE - ship.halite_amount))
+    logging.debug(f"res max: {resource_map.max_w} - minimum: {minimum}")
     resource_map = resource_map.grid
     current_offset = 1
     found = False
     pos = ship.position
     target = None
 
-    # logging.info(f"min: {minimum} | have: {ship.halite_amount} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
-    # for row in resource_map:
-    #     logging.debug(f"{row}")
 
     t_new = time.time()
     logging.info(f"CLOSEST CELL FUNC - setup - {t_new - t}")
 
     # Search with an expanding ring
-    while not found and current_offset < game_map.height and current_offset < game_map.width: # possible max search range
+    while not found and current_offset <= game_map.height: # possible max search range
         logging.error(f"---------- CURRENT OFFSET: {current_offset}")
         t_new = time.time()
         logging.info(f"CLOSEST CELL FUNC - expanding - {t_new - t}")
@@ -187,51 +184,30 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
                 continue
             x = a.x + offset_x * xdir
             y = a.y + offset_y * ydir
-            # logging.debug(f"-------------------------setting {(x, y)}")
-            grid[x][y].dist = INF
+            grid[x][y].dist = INF * 32  # As I'm also using INF for node weighting, this causes issues, hence I make this even larger
             grid[x][y].prev = None
             queue.append(grid[x][y])
 
-    t_new = time.time()
-    logging.info(f"DIJKSTRA A TO B - setup - {t_new - t}")
-
     while len(queue):
-        # logging.debug(f"::QUEUE:: {queue}")
-        # logging.debug(f"::QUEUE POS:: {[(q.x, q.y) for q in queue]}")
+        # Take the item in the queue with the lowest distance and remove it from the queue
         node = sorted(queue, key=lambda n: n.dist)[0]
-        # logging.debug(f"::QUEUE SRT:: {[(q.x, q.y) for q in queue]}")
         queue.pop(queue.index(node))
 
-        # logging.debug(f"Starting on: {(node.x, node.y)}")
-        for d in directions.values():
-            neighbour_x = (node.x + d[0]) % grid_width
-            neighbour_y = (node.y + d[1]) % grid_height
+        # For each neighbouring position
+        for pos in node.pos.get_surrounding_cardinals():
+            pos = game_map.normalize(pos)  # Ensure position is in normalized coordinates
 
-            logging.debug(f"{(a.x, a.y)} | {(b.x, b.y)} =>? {(neighbour_x, neighbour_y)}")
-            # validate cell is within bounds
-            if neighbour_x in rx and neighbour_y in ry:
-                # logging.debug("entered")
-                neighbour = grid[neighbour_x][neighbour_y]
-                logging.debug(f"Neighbour weight: {neighbour.tw}")
+            # validate cell is within search bounds
+            if pos.x in rx and pos.y in ry:
+                neighbour = grid[pos.x][pos.y]
 
-                if neighbour == a:
-                    # logging.debug("encountered root")
-                    continue
-                if node.prev:
-                    if neighbour == node.prev:
-                        # logging.debug("backtracking block")
-                        continue
+                # Calculate the distance of the path to the neighbour
+                dist_to_neighbour = node.dist + neighbour.tw
 
-                # logging.debug("after root and backtracking check")
-                alt_dist = node.dist + neighbour.tw
-                logging.debug(f"alt_dist: {alt_dist}")
-                if alt_dist < neighbour.dist or neighbour.dist == INF:
-                    neighbour.dist = alt_dist
+                # If path is shorter than any other current path to that neighbour, then we update the path to that node
+                if dist_to_neighbour < neighbour.dist:
+                    neighbour.dist = dist_to_neighbour
                     neighbour.prev = node
-
-                logging.debug(f"{neighbour == b}")
-                if neighbour == b:
-                    logging.debug(f"{neighbour.prev} and {b.prev}")
 
     t_new = time.time()
     logging.info(f"DIJKSTRA A TO B - queue done - {t_new - t}")
@@ -240,11 +216,11 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
 
     # logging.debug(f"path node b: {b} | {path_node}")
     cycles = 0
-    while path_node != a and cycles < 40:
+    while path_node != a:  # and cycles < 200:
         cycles += 1
         t_new = time.time()
         logging.info(f"DIJKSTRA A TO B - traversing - {t_new - t}")
-        # logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev} | {a}")
+        # logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev.pos} | {a}")
         prev_path_node = path_node.prev
         if prev_path_node == a:
             # logging.debug(f"Conversion: {(path_node.x, path_node.y)} and {(a.x, a.y)} | {(path_node.x - a.x, path_node.y - a.y)}")
@@ -257,11 +233,6 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
 
     t_new = time.time()
     logging.info(f"DIJKSTRA A TO B - cycles - {t_new - t}")
-
-    # TODO: workaround for the negative path weights I feel I is the issue for this algo right now.
-    if cycles >= 40:
-        return Direction.Still
-
 
 """ <<<Game Loop>>> """
 ship_count = 0

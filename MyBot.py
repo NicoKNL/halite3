@@ -275,13 +275,7 @@ while True:
 
             # Case: Gather more resources
             else:
-                # Early game
-                if game.turn_number < 0:  # < 125:
-                    target = shipyard_cleanup(grid, ship, me.shipyard)
-
-                # Mid and late game
-                else:
-                    target = closest_cell_with_ratio_fill(grid, ship)
+                target = closest_cell_with_ratio_fill(grid, ship)
 
                 grid.grid[target.x][target.y].set_weight(-INF)
                 new_dir = dijkstra_a_to_b(grid.grid, ship.position, target)
@@ -300,48 +294,6 @@ while True:
 
         new_ship_positions.append(new_position)
         ship_position_map.append((ship, new_position, d))
-
-    # temporary solution to resolve collisions
-    logging.debug("============= COLLISION SOLVER 1.0 =============")
-    solved = False
-
-    while not solved:
-        collision_detected = False
-
-        all_new_positions = [p for _, p, __ in ship_position_map]
-        logging.debug(f"position combos: {[(s.position, p) for s, p, _ in ship_position_map]}")
-        for s, p, _ in ship_position_map:
-            logging.debug(f"testing: {p} | anpCount: {all_new_positions.count(p)}")
-            logging.debug(f"{all_new_positions}")
-            if all_new_positions.count(p) > 1:
-                # Collision detected
-                logging.debug("........ COLLISION DETECTED ..........")
-
-                collision_detected = True
-
-        if not collision_detected:
-            logging.debug("============= COLLISIONS SOLVED!~~~ =============")
-
-            solved = True
-        else:
-            tmp_map = []
-            for s, p, d in ship_position_map:
-                if all_new_positions.count(p) == 1:
-                    tmp_map.append((s, p, d))
-                else:
-                    new_d = random.choice(Direction.get_all_cardinals())
-                    new_p = game_map.normalize(s.position.directional_offset(new_d))
-
-                    # See if we can make the move
-                    moving_cost = grid.grid[s.position.x][s.position.y].w // 10
-                    if moving_cost < s.halite_amount:
-                        tmp_map.append((s, new_p, new_d))
-                    else:
-                        tmp_map.append((s, p, d))
-
-            logging.debug(f"tmp: {[p for _, p, __ in tmp_map]}")
-
-            ship_position_map = tmp_map
 
     # Building ship command queue
     for s, p, d in ship_position_map:
