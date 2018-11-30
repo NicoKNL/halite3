@@ -1,7 +1,7 @@
 from hlt.positionals import Position
 from enum import Enum
 
-INF = 999999999
+INF = 99999999
 
 
 class Entity(Enum):
