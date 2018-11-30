@@ -148,6 +148,7 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
 
     # Edge case
     if a.pos == b.pos:
+        logging.debug(f"a pos: {a.pos} - b pos: {b.pos} - equal? {a.pos == b.pos}")
         return Direction.Still
 
     grid_width = len(grid[0])
@@ -225,7 +226,8 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
     path_node = b
 
     logging.debug(f"path node b: {b} | {path_node}")
-    while path_node != a:
+    cycles = 0
+    while path_node != a and cycles < 40:
         logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev} | {a}")
         prev_path_node = path_node.prev
         if prev_path_node == a:
@@ -236,6 +238,10 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
                     return Direction.convert(d)
 
         path_node = prev_path_node
+
+    # TODO: workaround for the negative path weights I feel I is the issue for this algo right now.
+    if cycles >= 40:
+        return Direction.Still
 
 
 """ <<<Game Loop>>> """
@@ -265,6 +271,7 @@ while True:
     ship_position_map = []  # (ship, target)
     all_ships = me.get_ships()
     for ship in all_ships:
+        logging.info(f"==================== SHIP ID {ship.id} ==================")
         current_cell = grid.grid[ship.position.x][ship.position.y]
         # Check if ship can and wants to move
         if ship.can_move(current_cell) and ship.should_move(current_cell):
@@ -275,7 +282,7 @@ while True:
             # Case: Gather more resources
             else:
                 # Early game
-                if game.turn_number < 125:
+                if game.turn_number < 0:  # < 125:
                     target = shipyard_cleanup(grid, ship, me.shipyard)
 
                 # Mid and late game
