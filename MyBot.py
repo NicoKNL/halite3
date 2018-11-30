@@ -95,7 +95,7 @@ def shipyard_cleanup(resource_map, ship, shipyard):
 def closest_cell_with_ratio_fill(resource_map, ship):
     t = time.time()
 
-    minimum = 0.25 * (resource_map.max_w - ship.halite_amount) * FILL_RATIO
+    minimum = min(0.75 * resource_map.max_w, 4 * (constants.MAX_HALITE - ship.halite_amount))
     logging.debug(f"res max: {resource_map.max_w} - minimum: {minimum}")
     resource_map = resource_map.grid
     current_offset = 1
@@ -103,15 +103,12 @@ def closest_cell_with_ratio_fill(resource_map, ship):
     pos = ship.position
     target = None
 
-    # logging.info(f"min: {minimum} | have: {ship.halite_amount} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
-    # for row in resource_map:
-    #     logging.debug(f"{row}")
 
     t_new = time.time()
     logging.info(f"CLOSEST CELL FUNC - setup - {t_new - t}")
 
     # Search with an expanding ring
-    while not found and current_offset < game_map.height and current_offset < game_map.width: # possible max search range
+    while not found and current_offset <= game_map.height: # possible max search range
         logging.error(f"---------- CURRENT OFFSET: {current_offset}")
         t_new = time.time()
         logging.info(f"CLOSEST CELL FUNC - expanding - {t_new - t}")
