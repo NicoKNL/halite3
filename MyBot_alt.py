@@ -18,6 +18,7 @@ from math import ceil
 #   (# print statements) are reserved for the engine-bot communication.
 import logging
 import itertools
+import time
 
 from grid import Grid
 """ <<<Game Begin>>> """
@@ -27,7 +28,7 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("R_ALT")
+game.ready("R")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
@@ -246,8 +247,12 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
 
 """ <<<Game Loop>>> """
 ship_count = 0
+prev_t = time.time()
 
 while True:
+    t = time.time()
+    logging.info(f"TURN {game.turn_number - 1}: {t - prev_t} seconds")
+    prev_t = t
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
     #   running update_frame().
     game.update_frame()

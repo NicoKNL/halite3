@@ -18,6 +18,7 @@ from math import ceil
 #   (# print statements) are reserved for the engine-bot communication.
 import logging
 import itertools
+import time
 
 from grid import Grid
 """ <<<Game Begin>>> """
@@ -246,8 +247,12 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
 
 """ <<<Game Loop>>> """
 ship_count = 0
+prev_t = time.time()
 
 while True:
+    t = time.time()
+    logging.info(f"TURN {game.turn_number - 1}: {t - prev_t} seconds")
+    prev_t = t
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
     #   running update_frame().
     game.update_frame()
