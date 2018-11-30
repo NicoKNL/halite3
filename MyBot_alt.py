@@ -28,7 +28,7 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("R_ALT")
+game.ready("R")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
@@ -212,6 +212,7 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
             if neighbour_x in rx and neighbour_y in ry:
                 # logging.debug("entered")
                 neighbour = grid[neighbour_x][neighbour_y]
+                logging.debug(f"Neighbour weight: {neighbour.tw}")
 
                 if neighbour == a:
                     # logging.debug("encountered root")
@@ -223,6 +224,7 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
 
                 # logging.debug("after root and backtracking check")
                 alt_dist = node.dist + neighbour.tw
+                logging.debug(f"alt_dist: {alt_dist}")
                 if alt_dist < neighbour.dist or neighbour.dist == INF:
                     neighbour.dist = alt_dist
                     neighbour.prev = node
