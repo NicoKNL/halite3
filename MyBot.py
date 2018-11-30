@@ -93,31 +93,31 @@ def shipyard_cleanup(resource_map, ship, shipyard):
 
 
 def closest_cell_with_ratio_fill(resource_map, ship):
+    t = time.time()
+
     minimum = 0.25 * (resource_map.max_w - ship.halite_amount) * FILL_RATIO
-    logging.debug(f"res max: {resource_map.max_w}")
+    # logging.debug(f"res max: {resource_map.max_w}")
     resource_map = resource_map.grid
     current_offset = 1
     found = False
     pos = ship.position
     target = None
 
-    logging.info(f"min: {minimum} | have: {ship.halite_amount} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
+    # logging.info(f"min: {minimum} | have: {ship.halite_amount} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
     # for row in resource_map:
     #     logging.debug(f"{row}")
 
-    # Check if we CAN move
-    if ceil(resource_map[ship.position.x][ship.position.y].w / 10.0) > ship.halite_amount:
-        found = True
-        target = ship.position
+    t_new = time.time()
+    logging.info(f"CLOSEST CELL FUNC - setup - {t_new - t}")
 
     # Search with an expanding ring
     while not found and current_offset < game_map.height and current_offset < game_map.width: # possible max search range
         logging.error(f"---------- CURRENT OFFSET: {current_offset}")
+        t_new = time.time()
+        logging.info(f"CLOSEST CELL FUNC - expanding - {t_new - t}")
 
         offsets = list(range(-current_offset, current_offset + 1))
         offsets = [(x, y) for x in offsets for y in offsets]
-        logging.info(f"Offsets: {offsets}")
-        # # print(f"Offsets: {offsets}")
 
         for offset in offsets:
             # # print(f"offset: {offset}")
@@ -132,6 +132,9 @@ def closest_cell_with_ratio_fill(resource_map, ship):
 
         current_offset += 1
 
+    t_new = time.time()
+    logging.info(f"CLOSEST CELL FUNC - done expanding - {t_new - t}")
+
     if not target:
         target = ship.position
         logging.info("target not found!")
@@ -142,6 +145,8 @@ def closest_cell_with_ratio_fill(resource_map, ship):
 
 
 def dijkstra_a_to_b(grid, a, b, offset=1):
+    t = time.time()
+
     # offset expands the grid bounds upon which we execute dijkstra. By having 1, we can always go around 1 other ship.
     # Assume a and b are only positions, not cells from the grid
     a = grid[a.x][a.y]
@@ -149,7 +154,6 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
 
     # Edge case
     if a.pos == b.pos:
-        logging.debug(f"a pos: {a.pos} - b pos: {b.pos} - equal? {a.pos == b.pos}")
         return Direction.Still
 
     grid_width = len(grid[0])
@@ -188,6 +192,9 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
             grid[x][y].prev = None
             queue.append(grid[x][y])
 
+    t_new = time.time()
+    logging.info(f"DIJKSTRA A TO B - setup - {t_new - t}")
+
     while len(queue):
         # logging.debug(f"::QUEUE:: {queue}")
         # logging.debug(f"::QUEUE POS:: {[(q.x, q.y) for q in queue]}")
@@ -224,21 +231,30 @@ def dijkstra_a_to_b(grid, a, b, offset=1):
                 if neighbour == b:
                     logging.debug(f"{neighbour.prev} and {b.prev}")
 
+    t_new = time.time()
+    logging.info(f"DIJKSTRA A TO B - queue done - {t_new - t}")
+
     path_node = b
 
-    logging.debug(f"path node b: {b} | {path_node}")
+    # logging.debug(f"path node b: {b} | {path_node}")
     cycles = 0
     while path_node != a and cycles < 40:
-        logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev} | {a}")
+        cycles += 1
+        t_new = time.time()
+        logging.info(f"DIJKSTRA A TO B - traversing - {t_new - t}")
+        # logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev} | {a}")
         prev_path_node = path_node.prev
         if prev_path_node == a:
-            logging.debug(f"Conversion: {(path_node.x, path_node.y)} and {(a.x, a.y)} | {(path_node.x - a.x, path_node.y - a.y)}")
+            # logging.debug(f"Conversion: {(path_node.x, path_node.y)} and {(a.x, a.y)} | {(path_node.x - a.x, path_node.y - a.y)}")
             for d in directions.values():
-                logging.debug(f"dir test: {d} | {a.pos.directional_offset(d)} | {path_node.pos}")
+                # logging.debug(f"dir test: {d} | {a.pos.directional_offset(d)} | {path_node.pos}")
                 if game_map.normalize(a.pos.directional_offset(d)) == path_node.pos:
                     return Direction.convert(d)
 
         path_node = prev_path_node
+
+    t_new = time.time()
+    logging.info(f"DIJKSTRA A TO B - cycles - {t_new - t}")
 
     # TODO: workaround for the negative path weights I feel I is the issue for this algo right now.
     if cycles >= 40:
