@@ -12,6 +12,7 @@ from hlt.positionals import Direction, Position
 
 # This library allows you to generate random numbers.
 import random
+from math import ceil
 
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 #   (# print statements) are reserved for the engine-bot communication.
@@ -94,7 +95,7 @@ def closest_cell_with_ratio_fill(resource_map, ship):
     minimum = 0.25 * (resource_map.max_w - ship.halite_amount) * FILL_RATIO
     logging.debug(f"res max: {resource_map.max_w}")
     resource_map = resource_map.grid
-    current_offset = 0
+    current_offset = 1
     found = False
     pos = ship.position
     target = None
@@ -102,11 +103,14 @@ def closest_cell_with_ratio_fill(resource_map, ship):
     logging.info(f"{minimum} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
     # for row in resource_map:
     #     logging.debug(f"{row}")
-    if resource_map[ship.position.x][ship.position.y].w >= minimum:
+
+    # Check if we CAN move
+    if ceil(resource_map[ship.position.x][ship.position.y].w / 10.0) > ship.halite_amount:
         found = True
+        target = ship.position
 
     # Search with an expanding ring
-    while not found and game_map.height and current_offset < game_map.width: # possible max search range
+    while not found and current_offset < game_map.height and current_offset < game_map.width: # possible max search range
         logging.error(f"---------- CURRENT OFFSET: {current_offset}")
 
         offsets = list(range(-current_offset, current_offset + 1))
@@ -244,6 +248,8 @@ while True:
     # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
+
+    logging.debug(f"GAME MAP SIZE: ({game_map.width}, {game_map.height})")
 
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     #   end of the turn.
