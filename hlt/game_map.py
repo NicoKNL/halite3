@@ -12,6 +12,9 @@ class MapCell:
     def __init__(self, position, halite_amount):
         self.position = position
         self.halite_amount = halite_amount
+        self.travel_weight = 0
+        self.distance_multiplier = 1
+        self.bonus = False
         self.ship = None
         self.structure = None
 
@@ -68,10 +71,13 @@ class GameMap:
     Can be indexed by a position, or by a contained entity.
     Coordinates start at 0. Coordinates are normalized for you
     """
-    def __init__(self, cells, width, height):
+    def __init__(self, cells, width, height, me):
+        self.me = me  # Player object
         self.width = width
         self.height = height
         self._cells = cells
+
+        self.max_halite = 0
 
     def __getitem__(self, location):
         """
@@ -85,6 +91,15 @@ class GameMap:
         elif isinstance(location, Entity):
             return self._cells[location.position.y][location.position.x]
         return None
+
+    def position_is_safe(self, source):
+        if not isinstance(source, Position):
+            source = source.position
+
+        for pos in source.get_surrounding_cardinals():
+            if self[pos].is_occupied:
+                return False
+        return True
 
     def calculate_distance(self, source, target):
         """
@@ -165,7 +180,7 @@ class GameMap:
         return Direction.Still
 
     @staticmethod
-    def _generate():
+    def _generate(me):
         """
         Creates a map object from the input given by the game engine
         :return: The map object
@@ -177,7 +192,7 @@ class GameMap:
             for x_position in range(map_width):
                 game_map[y_position][x_position] = MapCell(Position(x_position, y_position),
                                                            int(cells[x_position]))
-        return GameMap(game_map, map_width, map_height)
+        return GameMap(game_map, map_width, map_height, me)
 
     def _update(self):
         """
@@ -189,7 +204,35 @@ class GameMap:
         for y in range(self.height):
             for x in range(self.width):
                 self[Position(x, y)].ship = None
+                self[Position(x, y)].bonus = False  # Reset bonus
 
         for _ in range(int(read_input())):
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
+
+            self.max_halite = max(self.max_halite, cell_energy)
+
+        self._update_bonuses()
+        self._update_distance_multipliers()
+
+    def _update_bonuses(self):
+        offsets = [(x, y) for x in range(-4, 5) for y in range(-4, 5)]
+        for y in range(self.height):
+            for x in range(self.width):
+                enemy_ships = 0
+                for offset in offsets:
+                    cell = self[Position(x + offset[0], y + offset[1])]
+                    if cell.is_occupied:
+                        if cell.ship.owner != self.me:
+                            enemy_ships += 1
+
+                if enemy_ships >= 2:
+                    self[Position(x, y)].bonus = True
+
+    def _update_distance_multipliers(self):
+        for y in range(self.height):
+            for x in range(self.width):
+                cell = self[Position(x, y)]
+                # TODO: Also consider dropoffs
+                distance = self.calculate_distance(cell.position, self.me.shipyard.position)
+                cell.distance_multiplier = distance

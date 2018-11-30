@@ -45,9 +45,7 @@ ship_actions = {}
 ship_directions = {}
 
 
-def shipyard_cleanup(resource_map, ship, shipyard):
-    resource_map = resource_map.grid
-
+def shipyard_cleanup(game_map, ship, shipyard):
     if ship in ship_actions.keys():
         action = not ship_actions[ship]
     else:
@@ -69,16 +67,16 @@ def shipyard_cleanup(resource_map, ship, shipyard):
             target = shipyard.position
         else:
             target = ship.position
-            max_value = resource_map[target.x][target.y].w
+            max_value = game_map[target.x][target.y].w
             staying_value = max_value // 4
             moving_cost = max_value // 10
 
             if moving_cost < ship.halite_amount or moving_cost == 0:
                 for d in directions.values():
                     pos = game_map.normalize(ship.position.directional_offset(d))
-                    logging.debug(f"pos: {pos} | {game_map.calculate_distance(ship.position, shipyard.position) <= 5} | {resource_map[pos.x][pos.y].w}")
+                    logging.debug(f"pos: {pos} | {game_map.calculate_distance(ship.position, shipyard.position) <= 5} | {game_map[pos.x][pos.y].w}")
                     if game_map.calculate_distance(pos, shipyard.position) <= 5:
-                        w = resource_map[pos.x][pos.y].w
+                        w = game_map[pos.x][pos.y].w
                         if (w // 4) - moving_cost > staying_value and w > max_value:
                             max_value = w
                             target = pos
@@ -92,12 +90,11 @@ def shipyard_cleanup(resource_map, ship, shipyard):
     return target
 
 
-def closest_cell_with_ratio_fill(resource_map, ship):
+def closest_cell_with_ratio_fill(game_map, ship):
     t = time.time()
 
-    minimum = min(0.75 * resource_map.max_w, 4 * (constants.MAX_HALITE - ship.halite_amount))
-    logging.debug(f"res max: {resource_map.max_w} - minimum: {minimum}")
-    resource_map = resource_map.grid
+    minimum = min(0.75 * game_map.max_halite, 4 * (constants.MAX_HALITE - ship.halite_amount))
+    logging.debug(f"res max: {game_map.max_halite} - minimum: {minimum}")
     current_offset = 1
     found = False
     pos = ship.position
@@ -120,11 +117,11 @@ def closest_cell_with_ratio_fill(resource_map, ship):
             # # print(f"offset: {offset}")
             cell_pos = game_map.normalize(Position(pos.x - offset[0], pos.y - offset[1]))
             # print(f"cell_pos: {cell_pos}")
-            cell = resource_map[cell_pos.x][cell_pos.y]
-            if not target and cell.w >= minimum:
+            cell = game_map[cell_pos]
+            if not target and cell.halite_amount >= minimum:
                 target = cell_pos
                 found = True
-            elif cell.w >= minimum and game_map.calculate_distance(ship.position, cell_pos) < game_map.calculate_distance(ship.position, target):
+            elif cell.halite_amount >= minimum and game_map.calculate_distance(ship.position, cell_pos) < game_map.calculate_distance(ship.position, target):
                 target = cell_pos
 
         current_offset += 1
@@ -141,92 +138,98 @@ def closest_cell_with_ratio_fill(resource_map, ship):
     return target
 
 
-def dijkstra_a_to_b(grid, a, b, offset=1):
+def dijkstra_a_to_b(game_map, source, target, offset=1):
     t = time.time()
 
     # offset expands the grid bounds upon which we execute dijkstra. By having 1, we can always go around 1 other ship.
     # Assume a and b are only positions, not cells from the grid
-    a = grid[a.x][a.y]
-    b = grid[b.x][b.y]
+    source_cell = game_map[source]
+    target_cell = game_map[target]
 
     # Edge case
-    if a.pos == b.pos:
+    if source == target:
         return Direction.Still
 
-    grid_width = len(grid[0])
-    grid_height = len(grid)
+    dx = abs(target.x - source.x)
+    dy = abs(target.y - source.y)
 
-    dx = abs(b.x - a.x)
-    dy = abs(b.y - a.y)
-
-    xdir = 1 if b.x > a.x else -1
-    ydir = 1 if b.y > a.y else -1
+    xdir = 1 if target.x > source.x else -1
+    ydir = 1 if target.y > source.y else -1
 
     # Valid x and y positions in range
     if xdir == 1:
-        rx = range(a.x, b.x+1)
+        rx = range(source.x, target.x+1)
     else:
-        rx = range(b.x, a.x+1)
+        rx = range(target.x, source.x+1)
 
     if ydir == 1:
-        ry = range(a.y, b.y+1)
+        ry = range(source.y, target.y+1)
     else:
-        ry = range(b.y, a.y+1)
+        ry = range(target.y, source.y+1)
 
     # initialize distances
-    a.dist = 0
-    a.prev = None
-    queue = [a]
+    distance_map = {
+        source: {
+            "distance": 0,
+            "previous": None}
+    }
+    queue = [source]
 
-    for offset_x in range(dx + 1):
-        for offset_y in range(dy + 1):
+    for offset_x in range(-offset, dx + offset + 1):
+        for offset_y in range(-offset, dy + offset + 1):
             if offset_x == 0 and offset_y == 0:
                 continue
-            x = a.x + offset_x * xdir
-            y = a.y + offset_y * ydir
-            grid[x][y].dist = INF * 32  # As I'm also using INF for node weighting, this causes issues, hence I make this even larger
-            grid[x][y].prev = None
-            queue.append(grid[x][y])
+            x = source.x + offset_x * xdir
+            y = source.y + offset_y * ydir
+            position = Position(x, y)
+            distance_map[position] = {
+                "distance": INF * 32,
+                "previouis": None
+            }
+            # grid[x][y].dist = INF * 32  # As I'm also using INF for node weighting, this causes issues, hence I make this even larger
+            # grid[x][y].prev = None
+            queue.append(position)
 
     while len(queue):
         # Take the item in the queue with the lowest distance and remove it from the queue
-        node = sorted(queue, key=lambda n: n.dist)[0]
+        node = sorted(queue, key=lambda position: distance_map[position]["distance"])[0]
         queue.pop(queue.index(node))
 
         # For each neighbouring position
-        for pos in node.pos.get_surrounding_cardinals():
+        for pos in node.get_surrounding_cardinals():
             pos = game_map.normalize(pos)  # Ensure position is in normalized coordinates
 
             # validate cell is within search bounds
             if pos.x in rx and pos.y in ry:
-                neighbour = grid[pos.x][pos.y]
+                neighbour = game_map[pos]
+                neighbour_weight = neighbour.halite_amount if game_map[pos].is_occupied else INF
 
                 # Calculate the distance of the path to the neighbour
-                dist_to_neighbour = node.dist + neighbour.tw
+                dist_to_neighbour = distance_map[node]["distance"] + neighbour_weight
 
                 # If path is shorter than any other current path to that neighbour, then we update the path to that node
-                if dist_to_neighbour < neighbour.dist:
-                    neighbour.dist = dist_to_neighbour
-                    neighbour.prev = node
+                if dist_to_neighbour < distance_map[pos]["distance"]:
+                    distance_map[pos]["distance"] = dist_to_neighbour
+                    distance_map[pos]["previous"] = node
 
     t_new = time.time()
     logging.info(f"DIJKSTRA A TO B - queue done - {t_new - t}")
 
-    path_node = b
+    path_node = target
 
     # logging.debug(f"path node b: {b} | {path_node}")
     cycles = 0
-    while path_node != a:  # and cycles < 200:
+    while path_node != source:  # and cycles < 200:
         cycles += 1
         t_new = time.time()
         logging.info(f"DIJKSTRA A TO B - traversing - {t_new - t}")
         # logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev.pos} | {a}")
-        prev_path_node = path_node.prev
-        if prev_path_node == a:
+        prev_path_node = distance_map[path_node]["previous"]
+        if prev_path_node == source:
             # logging.debug(f"Conversion: {(path_node.x, path_node.y)} and {(a.x, a.y)} | {(path_node.x - a.x, path_node.y - a.y)}")
             for d in directions.values():
                 # logging.debug(f"dir test: {d} | {a.pos.directional_offset(d)} | {path_node.pos}")
-                if game_map.normalize(a.pos.directional_offset(d)) == path_node.pos:
+                if game_map.normalize(source.directional_offset(d)) == path_node:
                     return Direction.convert(d)
 
         path_node = prev_path_node
@@ -245,52 +248,44 @@ while True:
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
     #   running update_frame().
     game.update_frame()
-    # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
-
-    logging.debug(f"GAME MAP SIZE: ({game_map.width}, {game_map.height})")
 
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     #   end of the turn.
     command_queue = []
 
-    # dropoffs = me.get_dropoffs()
-    # logging.info("Dropoffs: {}".format(dropoffs))
-
     # Build the resource map
-    grid = Grid(game_map, me)
+    # grid = Grid(game_map, me)
 
     new_ship_positions = []
     ship_position_map = []  # (ship, target)
     all_ships = me.get_ships()
     for ship in all_ships:
         logging.info(f"==================== SHIP ID {ship.id} ==================")
-        current_cell = grid.grid[ship.position.x][ship.position.y]
-        # Check if ship can and wants to move
-        if ship.can_move(current_cell) and ship.should_move(current_cell):
+        current_cell = game_map[ship]
+        # Check if ship can and wants to move, OR, if the ship is in imminent danger from an enemy ship
+        if (ship.can_move(current_cell) and ship.should_move(current_cell)) or not game_map.position_is_safe(ship):
             # Case: Ship is "full" above threshold
             if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
-                new_dir = dijkstra_a_to_b(grid.grid, ship.position, me.shipyard.position)
+                new_dir = dijkstra_a_to_b(game_map, ship.position, me.shipyard.position)
 
             # Case: Gather more resources
             else:
-                target = closest_cell_with_ratio_fill(grid, ship)
-
-                grid.grid[target.x][target.y].set_weight(-INF)
-                new_dir = dijkstra_a_to_b(grid.grid, ship.position, target)
+                target = closest_cell_with_ratio_fill(game_map, ship)
+                game_map[ship].ship = None
+                game_map[target].ship = ship
+                new_dir = dijkstra_a_to_b(game_map, ship.position, target)
                 logging.debug(f"new dijkstra dir: {new_dir}")
 
         else:
-            new_dir = dijkstra_a_to_b(grid.grid, ship.position, ship.position)
+            new_dir = dijkstra_a_to_b(game_map, ship.position, ship.position)
 
         d = new_dir
         if not isinstance(d, tuple):
             d = directions[d]
 
         new_position = game_map.normalize(ship.position.directional_offset(d))
-        grid.grid[new_position.x][new_position.y].set_weight(-INF)
-        grid.grid[new_position.x][new_position.y].set_travel_weight(INF)
 
         new_ship_positions.append(new_position)
         ship_position_map.append((ship, new_position, d))
