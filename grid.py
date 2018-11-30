@@ -51,6 +51,7 @@ class Cell(object):
         self.y = self.pos.y
 
         self.w = self._game_cell.halite_amount
+        self.halite_amount = self.w
         self.tw = self.w  # travel weight
 
         self.entity = self.get_entity()

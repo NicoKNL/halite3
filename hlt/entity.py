@@ -79,7 +79,7 @@ class Ship(Entity):
 
     def in_danger(self, game_map):
         for pos in self.position.get_surrounding_cardinals():
-            if game_map[pos.x][pos.y].get_entity() == Entity.ENEMY:
+            if game_map[pos.x][pos.y].get_entity().owner != self.owner:
                 return True
         return False
 
