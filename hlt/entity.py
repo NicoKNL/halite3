@@ -74,7 +74,7 @@ class Ship(Entity):
 
     def should_move(self, cell):
         # staying_profit = ceil(0.25 * cell.halite_amount)
-        min = 50
+        min = 30
         # if staying_profit >= floor(0.5 * 0.25 * constants.MAX_HALITE):
         if cell.halite_amount >= min and self.halite_amount < constants.MAX_HALITE:
             return False
