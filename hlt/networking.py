@@ -66,6 +66,10 @@ class Game:
             for dropoff in player.get_dropoffs():
                 self.game_map[dropoff.position].structure = dropoff
 
+        self.game_map._update_bonuses()
+        self.game_map._update_distance_multipliers()
+        self.game_map._update_unsafe_cells()
+
     @staticmethod
     def end_turn(commands):
         """

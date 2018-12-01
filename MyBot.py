@@ -274,7 +274,7 @@ while True:
             else:
                 target = closest_cell_with_ratio_fill(game_map, ship)
                 game_map[ship].ship = None
-                game_map[target].ship = ship
+                game_map[target].mark_unsafe(ship)
                 new_dir = dijkstra_a_to_b(game_map, ship.position, target)
                 logging.debug(f"new dijkstra dir: {new_dir}")
 

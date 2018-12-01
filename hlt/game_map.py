@@ -212,9 +212,6 @@ class GameMap:
 
             self.max_halite = max(self.max_halite, cell_energy)
 
-        self._update_bonuses()
-        self._update_distance_multipliers()
-
     def _update_bonuses(self):
         offsets = [(x, y) for x in range(-4, 5) for y in range(-4, 5)]
         for y in range(self.height):
@@ -236,3 +233,13 @@ class GameMap:
                 # TODO: Also consider dropoffs
                 distance = self.calculate_distance(cell.position, self.me.shipyard.position)
                 cell.distance_multiplier = distance
+
+    def _update_unsafe_cells(self):
+        offsets = [(x, y) for x in range(-4, 5) for y in range(-4, 5)]
+        for y in range(self.height):
+            for x in range(self.width):
+                if self[Position(x, y)].is_occupied:
+                    ship = self[Position(x, y)].ship
+                    if ship.owner != self.me:
+                        for offset in offsets:
+                            self[Position(x + offset[0], y + offset[1])].mark_unsafe(ship)
