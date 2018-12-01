@@ -86,6 +86,13 @@ class Ship(Entity):
                 return True
         return False
 
+    def should_turn_in(self, game_map, current_turn):
+        turns_left = constants.MAX_TURNS - current_turn
+        turns_needed = game_map.calculate_distance(self.position, game_map.me.shipyard.position)
+
+        if turns_left <= turns_needed + 6:
+            return True
+        return False
 
     def move(self, direction):
         """

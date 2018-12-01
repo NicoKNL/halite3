@@ -81,6 +81,8 @@ class GameMap:
         self._cells = cells
 
         self.max_halite = 0
+        self.total_halite = 0
+        self.ship_count = 0
 
     def __getitem__(self, location):
         """
@@ -230,10 +232,12 @@ class GameMap:
 
         # Recalculating max_halite in field
         self.max_halite = 0  # Reset
+        self.total_halite = 0  # Reset
         logging.debug(f"Resetting max halite: {self.max_halite}")
         for y in range(self.height):
             for x in range(self.width):
                 self.max_halite = max(self.max_halite, self[Position(x, y)].halite_amount)
+                self.total_halite += self[Position(x, y)].halite_amount
 
         logging.debug(f"Calculated max halite: {self.max_halite}")
 
@@ -265,6 +269,8 @@ class GameMap:
         shipyard_positions = self.me.shipyard.position.get_surrounding_cardinals()
         shipyard_positions.append(self.me.shipyard.position)
 
+        self.ship_count = 0  # Reset
+
         # Figure out where the enemy ships are
         enemy_ships = []
         for y in range(self.height):
@@ -273,6 +279,9 @@ class GameMap:
                     ship = self[Position(x, y)].ship
                     if ship.owner != self.me.id and ship.position not in shipyard_positions:
                         enemy_ships.append(ship)
+
+                    if ship.owner == self.me.id:
+                        self.ship_count += 1
 
         # Mark the areas around the relevant enemy ships as containing an enemy as well
         offsets = [(x, y) for x in range(-1, 2) for y in range(-1, 2)]
