@@ -4,8 +4,8 @@ from . import commands, constants
 from .positionals import Direction, Position
 from .common import read_input
 
-from math import ceil
-
+from math import floor, ceil
+import logging
 
 class Entity(abc.ABC):
     """
@@ -66,14 +66,17 @@ class Ship(Entity):
         return "{} {}".format(commands.CONSTRUCT, self.id)
 
     def can_move(self, cell):
-        cost = ceil(0.10 * cell.halite_amount)
+        cost = floor(0.10 * cell.halite_amount)
+        logging.debug(f"can move SHIP {self.id}? cell: {cell.halite_amount} | cost: {cost} | have: {self.halite_amount}")
         if cost > self.halite_amount:
             return False
         return True
 
     def should_move(self, cell):
-        staying_profit = ceil(0.25 * cell.halite_amount)
-        if staying_profit >= 0.75 * 0.25 * constants.MAX_HALITE and self.halite_amount < 0.85 * constants.MAX_HALITE:
+        # staying_profit = ceil(0.25 * cell.halite_amount)
+        min = 50
+        # if staying_profit >= floor(0.5 * 0.25 * constants.MAX_HALITE):
+        if cell.halite_amount >= min and self.halite_amount < constants.MAX_HALITE:
             return False
         return True
 

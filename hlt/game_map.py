@@ -5,7 +5,7 @@ from .entity import Entity, Shipyard, Ship, Dropoff
 from .player import Player
 from .positionals import Direction, Position
 from .common import read_input
-
+import logging
 
 class MapCell:
     """A cell on the game map."""
@@ -54,6 +54,9 @@ class MapCell:
         """
         self.ship = ship
 
+    def mark_safe(self):
+        self.ship = None
+
     def __eq__(self, other):
         return self.position == other.position
 
@@ -96,10 +99,24 @@ class GameMap:
         if not isinstance(source, Position):
             source = source.position
 
+        if self[source].is_occupied:
+            return False
+
         for pos in source.get_surrounding_cardinals():
             if self[pos].is_occupied:
-                return False
+                if self[pos].ship.owner != self.me.id:
+                    return False
         return True
+
+    def enemy_is_close(self, source):
+        if not isinstance(source, Position):
+            source = source.position
+
+        for pos in source.get_surrounding_cardinals():
+            if self[pos].is_occupied:
+                if self[pos].ship.owner != self.me.id:
+                    return True
+        return False
 
     def calculate_distance(self, source, target):
         """
@@ -209,8 +226,16 @@ class GameMap:
         for _ in range(int(read_input())):
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
+            logging.debug(f"({cell_x}, {cell_y}): {cell_energy}")
 
-            self.max_halite = max(self.max_halite, cell_energy)
+        # Recalculating max_halite in field
+        self.max_halite = 0  # Reset
+        logging.debug(f"Resetting max halite: {self.max_halite}")
+        for y in range(self.height):
+            for x in range(self.width):
+                self.max_halite = max(self.max_halite, self[Position(x, y)].halite_amount)
+
+        logging.debug(f"Calculated max halite: {self.max_halite}")
 
     def _update_bonuses(self):
         offsets = [(x, y) for x in range(-4, 5) for y in range(-4, 5)]
@@ -235,11 +260,16 @@ class GameMap:
                 cell.distance_multiplier = distance
 
     def _update_unsafe_cells(self):
-        offsets = [(x, y) for x in range(-4, 5) for y in range(-4, 5)]
+        enemy_ships = []
         for y in range(self.height):
             for x in range(self.width):
                 if self[Position(x, y)].is_occupied:
                     ship = self[Position(x, y)].ship
-                    if ship.owner != self.me:
-                        for offset in offsets:
-                            self[Position(x + offset[0], y + offset[1])].mark_unsafe(ship)
+                    # logging.debug(f"ship detected at ({ship.position}) | Owner: {ship.owner} | Me: {self.me.id} | =? {ship.owner == self.me.id}")
+                    if ship.owner != self.me.id:
+                        enemy_ships.append(ship)
+
+        offsets = [(x, y) for x in range(-1, 2) for y in range(-1, 2)]
+        for ship in enemy_ships:
+            for offset in offsets:
+                self[self.normalize(Position(x + offset[0], y + offset[1]))].mark_unsafe(ship)
