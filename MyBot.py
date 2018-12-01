@@ -126,33 +126,45 @@ def closest_cell_with_ratio_fill(game_map, ship):
 
 
 def weighted_cleanup(game_map, ship, shipyard):
+    # TODO: Don't do this per ship, but once per game turn and figure out positions for each ship that way
     minimum = 30
     current_offset = 1
     running_sum = 0
-
+    distance_limit = 5
     found = False
-    targets = []
+    ship_seen = False
     # Search with an expanding ring
     while not found and current_offset <= game_map.height:  # possible max search range
         offsets = list(range(-current_offset, current_offset + 1))
         offsets = [(x, y) for x in offsets for y in offsets]
 
+        targets = []
         for offset in offsets:
             cell_pos = game_map.normalize(shipyard.position + Position(*offset))
-            # print(f"cell_pos: {cell_pos}")
             cell = game_map[cell_pos]
             if cell.halite_amount >= minimum and not cell.is_occupied:
                 targets.append(cell_pos)
-                if len(targets) > 3:
-                    found = True
+
+            if ship.position == cell_pos:
+                ship_seen = True
+
+        if targets:
+            best_target = (None, INF)  # For now best => closest
+            for target in targets:
+                distance = game_map.calculate_distance(ship.position, target)
+                if distance < best_target[1] and distance < distance_limit:
+                    best_target = (target, distance)
+                    logging.debug(f"{ship.id} best_target found: {best_target}")
+
+            if best_target[0] is not None:
+                logging.debug(f"{ship.id} | Found!")
+                found = True
 
         current_offset += 1
+        if ship_seen:
+            distance_limit *= 1.5
 
-    best_target = (None, INF)  # For now best => closest
-    for target in targets:
-        distance = game_map.calculate_distance(ship.position, target)
-        if distance < best_target[1]:
-            best_target = (target, distance)
+    logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
 
     return best_target[0]
 
@@ -363,7 +375,7 @@ while True:
         command_queue.append(ship.move(new_dir))
 
     # Spawning a ship
-    if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000 and game_map.ship_count < 50:
+    if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000 and game_map.ship_count < 37:
         command_queue.append(me.shipyard.spawn())
 
     # if game.turn_number > 10:
