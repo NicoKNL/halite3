@@ -260,16 +260,25 @@ class GameMap:
                 cell.distance_multiplier = distance
 
     def _update_unsafe_cells(self):
+        # Construct array with all shipyard related positions to prevent getting owned by a cheese strat
+        # TODO: Include dropoffs when implemented
+        shipyard_positions = self.me.shipyard.position.get_surrounding_cardinals()
+        shipyard_positions.append(self.me.shipyard.position)
+
+        # Figure out where the enemy ships are
         enemy_ships = []
         for y in range(self.height):
             for x in range(self.width):
                 if self[Position(x, y)].is_occupied:
                     ship = self[Position(x, y)].ship
-                    # logging.debug(f"ship detected at ({ship.position}) | Owner: {ship.owner} | Me: {self.me.id} | =? {ship.owner == self.me.id}")
-                    if ship.owner != self.me.id:
+                    if ship.owner != self.me.id and ship.position not in shipyard_positions:
                         enemy_ships.append(ship)
 
+        # Mark the areas around the relevant enemy ships as containing an enemy as well
         offsets = [(x, y) for x in range(-1, 2) for y in range(-1, 2)]
         for ship in enemy_ships:
             for offset in offsets:
-                self[self.normalize(Position(x + offset[0], y + offset[1]))].mark_unsafe(ship)
+                position = self.normalize(Position(x + offset[0], y + offset[1]))
+                # Only mark positions which are not already marked as occupied as I do not want to override my ships
+                if not self[position].is_occupied:
+                    self[position].mark_unsafe(ship)
