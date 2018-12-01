@@ -309,7 +309,7 @@ while True:
 
             # Final check if the move is actually safe as Dijkstra can result in an unsafe move when 1 unit away from target
             new_position = game_map.normalize(ship.position.directional_offset(new_dir))
-            if not game_map.position_is_safe(new_position):
+            if not game_map.position_is_safe(new_position) and not new_position == me.shipyard.position:
                 new_dir = safe_greedy_move(game_map, ship.position, target)
                 new_position = game_map.normalize(ship.position.directional_offset(new_dir))
 

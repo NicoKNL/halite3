@@ -102,7 +102,10 @@ class GameMap:
             source = source.position
 
         if self[source].is_occupied:
-            return False
+            if source == self.me.shipyard.position and self[source].ship.owner != self.me.id:
+                return True
+            else:
+                return False
 
         for pos in source.get_surrounding_cardinals():
             if self[pos].is_occupied:
