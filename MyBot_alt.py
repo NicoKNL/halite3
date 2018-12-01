@@ -18,6 +18,7 @@ from math import ceil
 #   (# print statements) are reserved for the engine-bot communication.
 import logging
 import itertools
+import time
 
 from grid import Grid
 """ <<<Game Begin>>> """
@@ -27,13 +28,13 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("R_ALT")
+game.ready("R")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
-FILL_RATIO = 0.75 # For now we accept 80% fill rate
+FILL_RATIO = 0.9  # For now we accept 80% fill rate
 INF = 99999999
 directions = {"n": (0, -1),
               "e": (1, 0),
@@ -44,9 +45,7 @@ ship_actions = {}
 ship_directions = {}
 
 
-def shipyard_cleanup(resource_map, ship, shipyard):
-    resource_map = resource_map.grid
-
+def shipyard_cleanup(game_map, ship, shipyard):
     if ship in ship_actions.keys():
         action = not ship_actions[ship]
     else:
@@ -68,16 +67,16 @@ def shipyard_cleanup(resource_map, ship, shipyard):
             target = shipyard.position
         else:
             target = ship.position
-            max_value = resource_map[target.x][target.y].w
+            max_value = game_map[target.x][target.y].w
             staying_value = max_value // 4
             moving_cost = max_value // 10
 
             if moving_cost < ship.halite_amount or moving_cost == 0:
                 for d in directions.values():
                     pos = game_map.normalize(ship.position.directional_offset(d))
-                    logging.debug(f"pos: {pos} | {game_map.calculate_distance(ship.position, shipyard.position) <= 5} | {resource_map[pos.x][pos.y].w}")
+                    # logging.debug(f"pos: {pos} | {game_map.calculate_distance(ship.position, shipyard.position) <= 5} | {game_map[pos.x][pos.y].w}")
                     if game_map.calculate_distance(pos, shipyard.position) <= 5:
-                        w = resource_map[pos.x][pos.y].w
+                        w = game_map[pos.x][pos.y].w
                         if (w // 4) - moving_cost > staying_value and w > max_value:
                             max_value = w
                             target = pos
@@ -91,42 +90,28 @@ def shipyard_cleanup(resource_map, ship, shipyard):
     return target
 
 
-def closest_cell_with_ratio_fill(resource_map, ship):
-    minimum = 0.25 * (resource_map.max_w - ship.halite_amount) * FILL_RATIO
-    logging.debug(f"res max: {resource_map.max_w}")
-    resource_map = resource_map.grid
+def closest_cell_with_ratio_fill(game_map, ship):
+    minimum = min(0.25 * game_map.max_halite, 4 * (constants.MAX_HALITE - ship.halite_amount))
+    logging.debug(f"res max: {game_map.max_halite} - minimum: {minimum}")
     current_offset = 1
     found = False
     pos = ship.position
     target = None
 
-    logging.info(f"min: {minimum} | have: {ship.halite_amount} | {resource_map[ship.position.x][ship.position.y]} | {ship.position}")
-    # for row in resource_map:
-    #     logging.debug(f"{row}")
-
-    # Check if we CAN move
-    if ceil(resource_map[ship.position.x][ship.position.y].w / 10.0) > ship.halite_amount:
-        found = True
-        target = ship.position
-
     # Search with an expanding ring
-    while not found and current_offset < game_map.height and current_offset < game_map.width: # possible max search range
-        logging.error(f"---------- CURRENT OFFSET: {current_offset}")
-
+    while not found and current_offset <= game_map.height: # possible max search range
         offsets = list(range(-current_offset, current_offset + 1))
         offsets = [(x, y) for x in offsets for y in offsets]
-        logging.info(f"Offsets: {offsets}")
-        # # print(f"Offsets: {offsets}")
 
         for offset in offsets:
             # # print(f"offset: {offset}")
             cell_pos = game_map.normalize(Position(pos.x - offset[0], pos.y - offset[1]))
             # print(f"cell_pos: {cell_pos}")
-            cell = resource_map[cell_pos.x][cell_pos.y]
-            if not target and cell.w >= minimum:
+            cell = game_map[cell_pos]
+            if not target and cell.halite_amount >= minimum:
                 target = cell_pos
                 found = True
-            elif cell.w >= minimum and game_map.calculate_distance(ship.position, cell_pos) < game_map.calculate_distance(ship.position, target):
+            elif cell.halite_amount >= minimum and game_map.calculate_distance(ship.position, cell_pos) < game_map.calculate_distance(ship.position, target):
                 target = cell_pos
 
         current_offset += 1
@@ -140,227 +125,225 @@ def closest_cell_with_ratio_fill(resource_map, ship):
     return target
 
 
-def dijkstra_a_to_b(grid, a, b, offset=1):
-    # offset expands the grid bounds upon which we execute dijkstra. By having 1, we can always go around 1 other ship.
-    # Assume a and b are only positions, not cells from the grid
-    a = grid[a.x][a.y]
-    b = grid[b.x][b.y]
+def weighted_cleanup(game_map, ship, shipyard):
+    minimum = 30
+    current_offset = 1
+    running_sum = 0
 
-    # Edge case
-    if a.pos == b.pos:
-        logging.debug(f"a pos: {a.pos} - b pos: {b.pos} - equal? {a.pos == b.pos}")
+    found = False
+    targets = []
+    # Search with an expanding ring
+    while not found and current_offset <= game_map.height:  # possible max search range
+        offsets = list(range(-current_offset, current_offset + 1))
+        offsets = [(x, y) for x in offsets for y in offsets]
+
+        for offset in offsets:
+            cell_pos = game_map.normalize(shipyard.position + Position(*offset))
+            # print(f"cell_pos: {cell_pos}")
+            cell = game_map[cell_pos]
+            if cell.halite_amount >= minimum and not cell.is_occupied:
+                targets.append(cell_pos)
+                if len(targets) > 3:
+                    found = True
+
+        current_offset += 1
+
+    best_target = (None, INF)  # For now best => closest
+    for target in targets:
+        distance = game_map.calculate_distance(ship.position, target)
+        if distance < best_target[1]:
+            best_target = (target, distance)
+
+    return best_target[0]
+
+
+def dijkstra_a_to_b(game_map, source, target, offset=1):
+    if source == target:
         return Direction.Still
 
-    grid_width = len(grid[0])
-    grid_height = len(grid)
+    dx = abs(target.x - source.x)
+    dy = abs(target.y - source.y)
 
-    dx = abs(b.x - a.x)
-    dy = abs(b.y - a.y)
-
-    xdir = 1 if b.x > a.x else -1
-    ydir = 1 if b.y > a.y else -1
+    xdir = 1 if target.x > source.x else -1
+    ydir = 1 if target.y > source.y else -1
 
     # Valid x and y positions in range
     if xdir == 1:
-        rx = range(a.x, b.x+1)
+        rx = range(source.x - offset, target.x + offset + 1)
     else:
-        rx = range(b.x, a.x+1)
+        rx = range(target.x - offset, source.x + offset + 1)
 
     if ydir == 1:
-        ry = range(a.y, b.y+1)
+        ry = range(source.y - offset, target.y + offset + 1)
     else:
-        ry = range(b.y, a.y+1)
+        ry = range(target.y - offset, source.y + offset + 1)
 
     # initialize distances
-    a.dist = 0
-    a.prev = None
-    queue = [a]
+    distance_map = {
+        source: {
+            "distance": 0,
+            "previous": None}
+    }
+    queue = [source]
 
-    for offset_x in range(dx + 1):
-        for offset_y in range(dy + 1):
+    for offset_x in range(-offset, dx + offset + 1):
+        for offset_y in range(-offset, dy + offset + 1):
             if offset_x == 0 and offset_y == 0:
                 continue
-            x = a.x + offset_x * xdir
-            y = a.y + offset_y * ydir
-            # logging.debug(f"-------------------------setting {(x, y)}")
-            grid[x][y].dist = INF
-            grid[x][y].prev = None
-            queue.append(grid[x][y])
+            x = source.x + offset_x * xdir
+            y = source.y + offset_y * ydir
+            position = Position(x, y)
+            distance_map[position] = {
+                "distance": INF * 32,
+                "previouis": None
+            }
+            queue.append(position)
 
+    # Dijkstra
+    #   Calculating the cheapest path to each respective node in the grid
     while len(queue):
-        # logging.debug(f"::QUEUE:: {queue}")
-        # logging.debug(f"::QUEUE POS:: {[(q.x, q.y) for q in queue]}")
-        node = sorted(queue, key=lambda n: n.dist)[0]
-        # logging.debug(f"::QUEUE SRT:: {[(q.x, q.y) for q in queue]}")
+        # Take the item in the queue with the lowest distance and remove it from the queue
+        node = sorted(queue, key=lambda position: distance_map[position]["distance"])[0]
         queue.pop(queue.index(node))
 
-        # logging.debug(f"Starting on: {(node.x, node.y)}")
-        for d in directions.values():
-            neighbour_x = (node.x + d[0]) % grid_width
-            neighbour_y = (node.y + d[1]) % grid_height
+        # For each neighbouring position
+        for pos in node.get_surrounding_cardinals():
+            pos = game_map.normalize(pos)  # Ensure position is in normalized coordinates
 
-            logging.debug(f"{(a.x, a.y)} | {(b.x, b.y)} =>? {(neighbour_x, neighbour_y)}")
-            # validate cell is within bounds
-            if neighbour_x in rx and neighbour_y in ry:
-                # logging.debug("entered")
-                neighbour = grid[neighbour_x][neighbour_y]
+            # validate cell is within search bounds
+            if pos.x in rx and pos.y in ry:
+                neighbour = game_map[pos]
 
-                if neighbour == a:
-                    # logging.debug("encountered root")
-                    continue
-                if node.prev:
-                    if neighbour == node.prev:
-                        # logging.debug("backtracking block")
-                        continue
+                # Calculate the cost of traveling to that neighbour
+                if game_map[pos].is_occupied:
+                    neighbour_weight = INF
+                else:
+                    neighbour_weight = neighbour.halite_amount
+                # neighbour_weight = neighbour.halite_amount if not game_map[pos].is_occupied else INF
+                # logging.debug(f"Neighbour: {pos} | {neighbour_weight} | occupied: {game_map[pos].is_occupied} | ship id {game_map[pos].ship}")
 
-                # logging.debug("after root and backtracking check")
-                alt_dist = node.dist + neighbour.tw
-                if alt_dist < neighbour.dist or neighbour.dist == INF:
-                    neighbour.dist = alt_dist
-                    neighbour.prev = node
+                # Calculate the distance of the path to the neighbour
+                dist_to_neighbour = distance_map[node]["distance"] + neighbour_weight
 
-                logging.debug(f"{neighbour == b}")
-                if neighbour == b:
-                    logging.debug(f"{neighbour.prev} and {b.prev}")
+                # If path is shorter than any other current path to that neighbour, then we update the path to that node
+                if dist_to_neighbour < distance_map[pos]["distance"]:
+                    distance_map[pos]["distance"] = dist_to_neighbour
+                    distance_map[pos]["previous"] = node
 
-    path_node = b
-
-    logging.debug(f"path node b: {b} | {path_node}")
-    cycles = 0
-    while path_node != a and cycles < 40:
-        logging.debug(f"path node: {(path_node.x, path_node.y)} | {path_node.prev} | {a}")
-        prev_path_node = path_node.prev
-        if prev_path_node == a:
-            logging.debug(f"Conversion: {(path_node.x, path_node.y)} and {(a.x, a.y)} | {(path_node.x - a.x, path_node.y - a.y)}")
-            for d in directions.values():
-                logging.debug(f"dir test: {d} | {a.pos.directional_offset(d)} | {path_node.pos}")
-                if game_map.normalize(a.pos.directional_offset(d)) == path_node.pos:
-                    return Direction.convert(d)
+    # Traverse from the target to the source by following all "previous" nodes that we calculated
+    path_node = target
+    while path_node != source:
+        prev_path_node = distance_map[path_node]["previous"]
+        if prev_path_node == source:
+            for d in Direction.get_all_cardinals(): #.values():
+                if game_map.normalize(source.directional_offset(d)) == path_node:
+                    return d
 
         path_node = prev_path_node
 
-    # TODO: workaround for the negative path weights I feel I is the issue for this algo right now.
-    if cycles >= 40:
+
+def safe_greedy_move(game_map, source, target):
+    safe_moves = []
+
+    # Evaluate if standing still is safe
+    if game_map.position_is_safe(source):
+        safe_moves.append(Direction.Still)
+
+    # Evaluate if any of the cardinal directions are safe
+    for direction in Direction.get_all_cardinals():
+        new_position = game_map.normalize(source.directional_offset(direction))
+        if game_map.position_is_safe(new_position):
+            safe_moves.append(direction)
+
+    # The scenario where we are fucked
+    if not safe_moves:
         return Direction.Still
+
+    # Else we greedily check which move brings us closest to our target
+    closest_to_target = (None, INF)
+    for direction in safe_moves:
+        position = game_map.normalize(source.directional_offset(direction))
+        distance = game_map.calculate_distance(position, target)
+        if distance < closest_to_target[1]:
+            closest_to_target = (direction, distance)
+
+    # Returns direction
+    return closest_to_target[0]
 
 
 """ <<<Game Loop>>> """
-ship_count = 0
-
 while True:
+
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
     #   running update_frame().
     game.update_frame()
-    # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
 
-    logging.debug(f"GAME MAP SIZE: ({game_map.width}, {game_map.height})")
-
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     #   end of the turn.
+    ship_queue = me.get_ships()
     command_queue = []
-
-    # dropoffs = me.get_dropoffs()
-    # logging.info("Dropoffs: {}".format(dropoffs))
-
-    # Build the resource map
-    grid = Grid(game_map, me)
 
     new_ship_positions = []
     ship_position_map = []  # (ship, target)
-    all_ships = me.get_ships()
-    for ship in all_ships:
-        logging.info(f"==================== SHIP ID {ship.id} ==================")
-        current_cell = grid.grid[ship.position.x][ship.position.y]
-        # Check if ship can and wants to move
-        if ship.can_move(current_cell) and ship.should_move(current_cell):
-            # Case: Ship is "full" above threshold
-            if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
-                new_dir = dijkstra_a_to_b(grid.grid, ship.position, me.shipyard.position)
 
+    # First evaluated all the ships that can't move
+    ship_queue_tmp = []
+    for ship in ship_queue:
+        current_cell = game_map[ship]
+        if not ship.can_move(current_cell):
+            new_dir = dijkstra_a_to_b(game_map, ship.position, ship.position)
+            logging.debug(f"SHIP {ship.id} CAN'T MOVE: {ship.position} - {new_dir}")
+            command_queue.append(ship.move(new_dir))
+        else:
+            ship_queue_tmp.append(ship)
+    ship_queue = ship_queue_tmp
+
+    # Then evaluate all ships that don't want to move and are in a safe spot
+    ship_queue_tmp = []
+    for ship in ship_queue:
+        current_cell = game_map[ship]
+        logging.debug(f"SHOULD MOVE: {not ship.should_move(current_cell)} | {game_map.position_is_safe(current_cell)}")
+        if not ship.should_move(current_cell) and not game_map.enemy_is_close(current_cell):
+            new_dir = Direction.Still
+            logging.debug(f"SHIP {ship.id} WANTS TO STAY: {ship.position} - {new_dir}")
+            command_queue.append(ship.move(new_dir))
+        else:
+            ship_queue_tmp.append(ship)
+    ship_queue = ship_queue_tmp
+
+    # Finally start resolving all ships that CAN move, and want or should move
+    for ship in ship_queue:
+        current_cell = game_map[ship]
+        if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
+            # Case: We need to turn in our halite
+            target = me.shipyard.position
+        else:
             # Case: Gather more resources
-            else:
-                # Early game
-                if game.turn_number < 0:  # < 125:
-                    target = shipyard_cleanup(grid, ship, me.shipyard)
+            target = weighted_cleanup(game_map, ship, me.shipyard)
 
-                # Mid and late game
-                else:
-                    target = closest_cell_with_ratio_fill(grid, ship)
+        new_dir = dijkstra_a_to_b(game_map, ship.position, target)
 
-                grid.grid[target.x][target.y].set_weight(-INF)
-                new_dir = dijkstra_a_to_b(grid.grid, ship.position, target)
-                logging.debug(f"new dijkstra dir: {new_dir}")
+        # Final check if the move is actually safe as Dijkstra can result in an unsafe move when 1 unit away from target
+        new_position = game_map.normalize(ship.position.directional_offset(new_dir))
+        if not game_map.position_is_safe(new_position):
+            new_dir = safe_greedy_move(game_map, ship.position, target)
+            new_position = game_map.normalize(ship.position.directional_offset(new_dir))
 
-        else:
-            new_dir = dijkstra_a_to_b(grid.grid, ship.position, ship.position)
+        # Already move the ship in the game map to help prevent collisions
+        logging.debug(f"SHIP {ship.id} WANTS TO MOVE: {ship.position} - {new_dir}")
+        game_map[ship].mark_safe()
+        game_map[new_position].mark_unsafe(ship)
 
-        d = new_dir
-        if not isinstance(d, tuple):
-            d = directions[d]
+        # And finally add the command to the queue
+        command_queue.append(ship.move(new_dir))
 
-        new_position = game_map.normalize(ship.position.directional_offset(d))
-        grid.grid[new_position.x][new_position.y].set_weight(-INF)
-        grid.grid[new_position.x][new_position.y].set_travel_weight(INF)
-
-        new_ship_positions.append(new_position)
-        ship_position_map.append((ship, new_position, d))
-
-    # temporary solution to resolve collisions
-    logging.debug("============= COLLISION SOLVER 1.0 =============")
-    solved = False
-
-    while not solved:
-        collision_detected = False
-
-        all_new_positions = [p for _, p, __ in ship_position_map]
-        logging.debug(f"position combos: {[(s.position, p) for s, p, _ in ship_position_map]}")
-        for s, p, _ in ship_position_map:
-            logging.debug(f"testing: {p} | anpCount: {all_new_positions.count(p)}")
-            logging.debug(f"{all_new_positions}")
-            if all_new_positions.count(p) > 1:
-                # Collision detected
-                logging.debug("........ COLLISION DETECTED ..........")
-
-                collision_detected = True
-
-        if not collision_detected:
-            logging.debug("============= COLLISIONS SOLVED!~~~ =============")
-
-            solved = True
-        else:
-            tmp_map = []
-            for s, p, d in ship_position_map:
-                if all_new_positions.count(p) == 1:
-                    tmp_map.append((s, p, d))
-                else:
-                    new_d = random.choice(Direction.get_all_cardinals())
-                    new_p = game_map.normalize(s.position.directional_offset(new_d))
-
-                    # See if we can make the move
-                    moving_cost = grid.grid[s.position.x][s.position.y].w // 10
-                    if moving_cost < s.halite_amount:
-                        tmp_map.append((s, new_p, new_d))
-                    else:
-                        tmp_map.append((s, p, d))
-
-            logging.debug(f"tmp: {[p for _, p, __ in tmp_map]}")
-
-            ship_position_map = tmp_map
-
-    # Building ship command queue
-    for s, p, d in ship_position_map:
-        logging.debug(f"position combos: {[(s.position, p) for s, p, _ in ship_position_map]}")
-        command_queue.append(s.move(d))
-
-    # If the game is in the first 200 turns and you have enough halite, spawn a ship.
-    # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    # print(f"{game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied}")
-    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and me.shipyard.position not in [p for _, p, __ in ship_position_map]:
-        logging.info("Spawning new ship")
+    # Spawning a ship
+    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
         command_queue.append(me.shipyard.spawn())
-        ship_count += 1
 
-    # Send your moves back to the game environment, ending this turn.
+    # if game.turn_number > 10:
+    #     time.sleep(2)
+    # Sending moves to end the turn
     game.end_turn(command_queue)
