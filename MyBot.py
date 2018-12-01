@@ -291,7 +291,7 @@ while True:
     # First we check if we are at the end of the game and the ship needs to start coming home
     ship_queue_tmp = []
     for ship in ship_queue:
-        if ship.should_turn_in(game_map, game.turn_number):
+        if ship.should_turn_in(game_map, game.turn_number) and ship.can_move(game_map[ship]):
             target = me.shipyard.position
             new_dir = dijkstra_a_to_b(game_map, ship.position, target)
 
@@ -363,7 +363,7 @@ while True:
         command_queue.append(ship.move(new_dir))
 
     # Spawning a ship
-    if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000:
+    if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000 and game_map.ship_count < 50:
         command_queue.append(me.shipyard.spawn())
 
     # if game.turn_number > 10:
