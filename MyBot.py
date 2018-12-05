@@ -11,16 +11,11 @@ from hlt import constants
 from hlt.positionals import Direction, Position
 
 # This library allows you to generate random numbers.
-import random
-from math import ceil
 
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 #   (# print statements) are reserved for the engine-bot communication.
 import logging
-import itertools
-import time
 
-from grid import Grid
 """ <<<Game Begin>>> """
 
 # This game object contains the initial game state.
@@ -164,7 +159,7 @@ def weighted_cleanup(game_map, ship, shipyard):
         if ship_seen:
             distance_limit *= 1.5
 
-    logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
+    # logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
 
     return best_target[0]
 
@@ -314,12 +309,10 @@ while True:
                 new_position = game_map.normalize(ship.position.directional_offset(new_dir))
 
             # Already move the ship in the game map to help prevent collisions
-            logging.debug(f"SHIP {ship.id} WANTS TO MOVE: {ship.position} - {new_dir}")
-            game_map[ship].mark_safe()
-            game_map[new_position].mark_unsafe(ship)
+            # logging.debug(f"SHIP {ship.id} WANTS TO MOVE: {ship.position} - {new_dir}")
 
             # And finally add the command to the queue
-            command_queue.append(ship.move(new_dir))
+            command_queue.append(ship.move(game_map, new_dir))
         else:
             ship_queue_tmp.append(ship)
     ship_queue = ship_queue_tmp
@@ -330,7 +323,7 @@ while True:
         current_cell = game_map[ship]
         if not ship.can_move(current_cell):
             new_dir = Direction.Still
-            command_queue.append(ship.move(new_dir))
+            command_queue.append(ship.move(game_map, new_dir))
         else:
             ship_queue_tmp.append(ship)
     ship_queue = ship_queue_tmp
@@ -343,7 +336,7 @@ while True:
         if not ship.should_move(current_cell) and not game_map.enemy_is_close(current_cell):
             new_dir = Direction.Still
             logging.debug(f"SHIP {ship.id} WANTS TO STAY: {ship.position} - {new_dir}")
-            command_queue.append(ship.move(new_dir))
+            command_queue.append(ship.move(game_map, new_dir))
         else:
             ship_queue_tmp.append(ship)
     ship_queue = ship_queue_tmp
@@ -368,13 +361,12 @@ while True:
 
         # Already move the ship in the game map to help prevent collisions
         logging.debug(f"SHIP {ship.id} WANTS TO MOVE: {ship.position} - {new_dir}")
-        game_map[ship].mark_safe()
-        game_map[new_position].mark_unsafe(ship)
 
         # And finally add the command to the queue
-        command_queue.append(ship.move(new_dir))
+        command_queue.append(ship.move(game_map, new_dir))
 
     # Spawning a ship
+    logging.debug(f"{game_map[me.shipyard].is_occupied}")
     if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000 and game_map.ship_count < 37:
         command_queue.append(me.shipyard.spawn())
 

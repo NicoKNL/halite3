@@ -60,7 +60,13 @@ class Game:
         # Mark cells with ships as unsafe for navigation
         for player in self.players.values():
             for ship in player.get_ships():
-                self.game_map[ship.position].mark_unsafe(ship)
+                if player.id != self.my_id:
+                    self.game_map[ship.position].mark_unsafe(ship)
+                else:
+                    # Only update ships from myself that can't move, this enables turtle swapping
+                    if not ship.can_move(self.game_map[ship.position]):
+                        self.game_map[ship.position].mark_unsafe(ship)
+
 
             self.game_map[player.shipyard.position].structure = player.shipyard
             for dropoff in player.get_dropoffs():

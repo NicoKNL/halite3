@@ -94,11 +94,16 @@ class Ship(Entity):
             return True
         return False
 
-    def move(self, direction):
+    def move(self, game_map, direction):
         """
         Return a move to move this ship in a direction without
         checking for collisions.
         """
+        new_position = game_map.normalize(self.position.directional_offset(direction))
+        game_map[self].mark_safe()
+        game_map[new_position].mark_unsafe(self)
+        logging.debug(f"{new_position} is now occupied? :{game_map[new_position].is_occupied}")
+
         raw_direction = direction
         if not isinstance(direction, str) or direction not in "nsewo":
             raw_direction = Direction.convert(direction)
