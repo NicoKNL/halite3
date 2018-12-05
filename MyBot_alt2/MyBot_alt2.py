@@ -11,16 +11,11 @@ from hlt import constants
 from hlt.positionals import Direction, Position
 
 # This library allows you to generate random numbers.
-import random
-from math import ceil
 
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 #   (# print statements) are reserved for the engine-bot communication.
 import logging
-import itertools
-import time
 
-from grid import Grid
 """ <<<Game Begin>>> """
 
 # This game object contains the initial game state.
@@ -28,7 +23,7 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("R")
+game.ready("ALT2")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
@@ -288,13 +283,36 @@ while True:
     new_ship_positions = []
     ship_position_map = []  # (ship, target)
 
-    # First evaluated all the ships that can't move
+    # First we check if we are at the end of the game and the ship needs to start coming home
+    ship_queue_tmp = []
+    for ship in ship_queue:
+        if ship.should_turn_in(game_map, game.turn_number) and ship.can_move(game_map[ship]):
+            target = me.shipyard.position
+            new_dir = dijkstra_a_to_b(game_map, ship.position, target)
+
+            # Final check if the move is actually safe as Dijkstra can result in an unsafe move when 1 unit away from target
+            new_position = game_map.normalize(ship.position.directional_offset(new_dir))
+            if not game_map.position_is_safe(new_position):
+                new_dir = safe_greedy_move(game_map, ship.position, target)
+                new_position = game_map.normalize(ship.position.directional_offset(new_dir))
+
+            # Already move the ship in the game map to help prevent collisions
+            logging.debug(f"SHIP {ship.id} WANTS TO MOVE: {ship.position} - {new_dir}")
+            game_map[ship].mark_safe()
+            game_map[new_position].mark_unsafe(ship)
+
+            # And finally add the command to the queue
+            command_queue.append(ship.move(new_dir))
+        else:
+            ship_queue_tmp.append(ship)
+    ship_queue = ship_queue_tmp
+
+    # Evaluated all the ships that can't move
     ship_queue_tmp = []
     for ship in ship_queue:
         current_cell = game_map[ship]
         if not ship.can_move(current_cell):
-            new_dir = dijkstra_a_to_b(game_map, ship.position, ship.position)
-            logging.debug(f"SHIP {ship.id} CAN'T MOVE: {ship.position} - {new_dir}")
+            new_dir = Direction.Still
             command_queue.append(ship.move(new_dir))
         else:
             ship_queue_tmp.append(ship)
@@ -340,7 +358,7 @@ while True:
         command_queue.append(ship.move(new_dir))
 
     # Spawning a ship
-    if game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000 and game_map.ship_count < 50:
         command_queue.append(me.shipyard.spawn())
 
     # if game.turn_number > 10:
