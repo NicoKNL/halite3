@@ -308,9 +308,6 @@ while True:
                 new_dir = safe_greedy_move(game_map, ship.position, target)
                 new_position = game_map.normalize(ship.position.directional_offset(new_dir))
 
-            # Already move the ship in the game map to help prevent collisions
-            # logging.debug(f"SHIP {ship.id} WANTS TO MOVE: {ship.position} - {new_dir}")
-
             # And finally add the command to the queue
             command_queue.append(ship.move(game_map, new_dir))
         else:
@@ -366,7 +363,7 @@ while True:
         command_queue.append(ship.move(game_map, new_dir))
 
     # Spawning a ship
-    logging.debug(f"{game_map[me.shipyard].is_occupied}")
+    logging.debug(f"{game_map[me.shipyard].is_occupied}, {id(game_map[me.shipyard])}")
     if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000 and game_map.ship_count < 37:
         command_queue.append(me.shipyard.spawn())
 

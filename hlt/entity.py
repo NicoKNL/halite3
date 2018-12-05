@@ -100,9 +100,9 @@ class Ship(Entity):
         checking for collisions.
         """
         new_position = game_map.normalize(self.position.directional_offset(direction))
-        game_map[self].mark_safe()
         game_map[new_position].mark_unsafe(self)
-        logging.debug(f"{new_position} is now occupied? :{game_map[new_position].is_occupied}")
+
+        logging.debug(f"{new_position} is now occupied? :{game_map[new_position].is_occupied}, {id(game_map[new_position])}")
 
         raw_direction = direction
         if not isinstance(direction, str) or direction not in "nsewo":
