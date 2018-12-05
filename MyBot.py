@@ -20,7 +20,6 @@ import logging
 import itertools
 import time
 
-from grid import Grid
 """ <<<Game Begin>>> """
 
 # This game object contains the initial game state.
