@@ -63,9 +63,7 @@ class Game:
                 if player.id != self.my_id:
                     self.game_map[ship.position].mark_unsafe(ship)
                 else:
-                    # Only update ships from myself that can't move, this enables turtle swapping
-                    if not ship.can_move(self.game_map[ship.position]):
-                        self.game_map[ship.position].mark_unsafe(ship)
+                    self.game_map[ship.position].mark_unsafe(ship)
 
 
             self.game_map[player.shipyard.position].structure = player.shipyard
@@ -75,6 +73,7 @@ class Game:
         self.game_map._update_bonuses()
         self.game_map._update_distance_multipliers()
         self.game_map._update_unsafe_cells()
+        self.game_map._update_move_map()
 
     @staticmethod
     def end_turn(commands):

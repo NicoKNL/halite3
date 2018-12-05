@@ -79,6 +79,7 @@ class GameMap:
         self.width = width
         self.height = height
         self._cells = cells
+        self._move_map = None
 
         self.max_halite = 0
         self.total_halite = 0
@@ -294,3 +295,17 @@ class GameMap:
                 # Only mark positions which are not already marked as occupied as I do not want to override my ships
                 if not self[position].is_occupied:
                     self[position].mark_unsafe(ship)
+
+    def _update_move_map(self):
+        move_map = [[None for x in range(self.width)] for y in range(self.height)]
+        for y in range(self.height):
+            for x in range(self.width):
+                cell = self[Position(x, y)]
+                if cell.is_occupied:
+                    ship = cell.ship
+                    if (ship.owner == self.me.id and not ship.can_move(cell)) or ship.owner != self.me.id:
+                        move_map[y][x] = ship
+        self._move_map = move_map
+
+    def register_move(self, ship, target):
+        self._move_map[target.y][target.x] = ship

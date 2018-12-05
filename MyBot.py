@@ -264,6 +264,7 @@ def safe_greedy_move(game_map, source, target):
 
     # The scenario where we are fucked
     if not safe_moves:
+        logging.debug(f"NO SAFE MOVES: {source}")
         return Direction.Still
 
     # Else we greedily check which move brings us closest to our target
@@ -364,7 +365,7 @@ while True:
 
     # Spawning a ship
     logging.debug(f"{game_map[me.shipyard].is_occupied}, {id(game_map[me.shipyard])}")
-    if game.turn_number <= constants.MAX_TURNS - 150 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and game_map.total_halite / max(game_map.ship_count, 1) > 4000 and game_map.ship_count < 37:
+    if game.turn_number <= constants.MAX_TURNS - 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
         command_queue.append(me.shipyard.spawn())
 
     # if game.turn_number > 10:

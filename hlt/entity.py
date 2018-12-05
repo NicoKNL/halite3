@@ -72,6 +72,11 @@ class Ship(Entity):
             return False
         return True
 
+    def is_surrounded(self, game_map):
+        for pos in self.position.get_surrounding_cardinals():
+            if game_map[pos.x][pos.y].get_entity().owner != self.owner:
+                return True
+
     def should_move(self, cell):
         # staying_profit = ceil(0.25 * cell.halite_amount)
         min = 30
@@ -101,8 +106,7 @@ class Ship(Entity):
         """
         new_position = game_map.normalize(self.position.directional_offset(direction))
         game_map[new_position].mark_unsafe(self)
-
-        logging.debug(f"{new_position} is now occupied? :{game_map[new_position].is_occupied}, {id(game_map[new_position])}")
+        game_map.register_move(self, new_position)
 
         raw_direction = direction
         if not isinstance(direction, str) or direction not in "nsewo":
