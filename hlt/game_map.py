@@ -294,3 +294,14 @@ class GameMap:
                 # Only mark positions which are not already marked as occupied as I do not want to override my ships
                 if not self[position].is_occupied:
                     self[position].mark_unsafe(ship)
+
+    def as_array(self):
+        grid = []
+        for y in range(self.height):
+            row = []
+            for x in range(self.width):
+                row.append(self[Position(x, y)])
+            grid.append(row)
+        return grid
+
+

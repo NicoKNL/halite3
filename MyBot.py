@@ -9,6 +9,7 @@ from hlt import constants
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Direction, Position
+from hlt.resource_tree import ResourceTree
 
 # This library allows you to generate random numbers.
 import random
@@ -282,6 +283,20 @@ def safe_greedy_move(game_map, source, target):
     return closest_to_target[0]
 
 
+def distance_match(source, targets):
+    target = None
+    dist = INF
+
+    for t in targets:
+        t_dist = game_map.calculate_distance(source, t)
+        if game_map.calculate_distance(source, t) < dist:
+            dist = t_dist
+            target = t
+
+    targets.pop(targets.index(target))
+    return targets, target
+
+
 """ <<<Game Loop>>> """
 while True:
 
@@ -290,6 +305,10 @@ while True:
     game.update_frame()
     me = game.me
     game_map = game.game_map
+
+    # Build the RESOURCE TREE
+    logging.debug("building")
+    tree = ResourceTree(game_map, game_map.total_halite)
 
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     #   end of the turn.
@@ -348,6 +367,7 @@ while True:
     ship_queue = ship_queue_tmp
 
     # Finally start resolving all ships that CAN move, and want or should move
+    target_candidates = [tree.follow_max(game_map, me.shipyard.position) for _ in range(len(ship_queue) * 2)]
     for ship in ship_queue:
         current_cell = game_map[ship]
         if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
@@ -355,7 +375,8 @@ while True:
             target = me.shipyard.position
         else:
             # Case: Gather more resources
-            target = weighted_cleanup(game_map, ship, me.shipyard)
+            target_candidates, target = distance_match(ship.position, target_candidates)
+            # target = weighted_cleanup(game_map, ship, me.shipyard)
 
         new_dir = dijkstra_a_to_b(game_map, ship.position, target)
 
