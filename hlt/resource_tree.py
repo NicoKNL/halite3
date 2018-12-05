@@ -44,6 +44,7 @@ class ResourceTree(object):
 
     def follow_max(self):
         if self.size == 1:
+            self.subtract(self.halite_amount)
             return self._grid[0][0].position
         else:
             max_halite = 0
