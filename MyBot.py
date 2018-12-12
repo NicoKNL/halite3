@@ -291,15 +291,17 @@ def safe_greedy_move(game_map, source, target):
 
 def distance_match(source, targets):
     target = None
-    dist = INF
+    dist = 0
 
     for t in targets:
         t_dist = game_map.calculate_distance(source, t)
-        if game_map.calculate_distance(source, t) < dist:
+        if game_map.calculate_distance(source, t) > dist:
             dist = t_dist
             target = t
 
+    logging.debug(f"targets A: {targets}")
     targets.pop(targets.index(target))
+    logging.debug(f"targets B: {targets}")
     return targets, target
 
 
@@ -316,6 +318,17 @@ while True:
     logging.debug("building")
     tree = ResourceTree(game_map, game_map.total_halite)
 
+    # tree_viz = ""
+    # for row in tree.as_array():
+    #     for val in row:
+    #         tree_viz += '{:4}'.format(val)
+    #     tree_viz += '\n'
+    #
+    # logging.debug(tree_viz)
+    # logging.debug("--------------------------------------------")
+
+    # tree._debug()
+    # time.sleep(2)
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     #   end of the turn.
     ship_queue = me.get_ships()
@@ -373,7 +386,39 @@ while True:
     ship_queue = ship_queue_tmp
 
     # Finally start resolving all ships that CAN move, and want or should move
-    target_candidates = [tree.follow_max(game_map, me.shipyard.position) for _ in range(len(ship_queue) * 2)]
+    target_candidates = []
+
+    for _ in range(len(ship_queue)):
+        logging.debug("--------------------------")
+        logging.debug(f"shipyard pos: {me.shipyard.position}")
+        target_candidates.append(tree.follow_max(game_map, me.shipyard.position))
+        logging.debug(f"targets: {target_candidates}")
+        logging.debug("--------------------------")
+
+    # tree_viz = ""
+    # for row in tree.as_array():
+    #     for val in row:
+    #         tree_viz += '{:4}'.format(val)
+    #     tree_viz += '\n'
+    #
+    # logging.debug(tree_viz)
+    # logging.debug("--------------------------------------------")
+    #
+    #
+    #
+    # a, b, c, d = tree.children_as_array()
+    #
+    # for each in [a, b, c, d]:
+    #     c_viz = ""
+    #     for row in each:
+    #         for val in row:
+    #             c_viz += '{:4}'.format(val)
+    #         c_viz += '\n'
+    #     logging.debug(c_viz)
+    #     logging.debug("--------------------------------------------")
+    #
+    # time.sleep(3)
+
     for ship in ship_queue:
         current_cell = game_map[ship]
         if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:

@@ -5,7 +5,7 @@ import logging
 
 class ResourceTree(object):
     def __init__(self, grid, halite_amount, parent=None):
-        logging.debug(grid)
+        # logging.debug(grid)
         if isinstance(grid, GameMap):
             grid = grid.as_array()
 
@@ -14,6 +14,14 @@ class ResourceTree(object):
 
         self.size = len(grid)
         self._grid = grid
+
+        # c_viz = ""
+        # for row in self.as_array():
+        #     for val in row:
+        #         c_viz += '{:4}'.format(val)
+        #     c_viz += '\n'
+        # logging.debug(c_viz)
+        # logging.debug("--------------------------------------------")
         self.parent = parent
         self.children = None
 
@@ -23,29 +31,30 @@ class ResourceTree(object):
         # self._debug()
 
     def _calculate_center(self):
-        x = (self._grid[0][0].position.x + self._grid[self.size - 1][self.size - 1].position.x) // 2
-        y = (self._grid[0][0].position.y + self._grid[self.size - 1][self.size - 1].position.y) // 2
+        x = (self._grid[0][0].position.x + self._grid[self.size - 1][self.size - 1].position.x) / 2
+        y = (self._grid[0][0].position.y + self._grid[self.size - 1][self.size - 1].position.y) / 2
+        # logging.debug(f"center: {Position(x, y)}")
         return Position(x, y)
 
     def _construct_children(self):
         children = []
         if self.size % 2 == 0:
-
             halfsize = self.size // 2
-            halite_amount = 0
+            # logging.debug(f"halfsize: {halfsize}")
             for i in range(2):
                 for j in range(2):
                     subgrid = []
+                    halite_amount = 0
                     for y in range(halfsize):
                         row = []
                         for x in range(halfsize):
-                            cell = self._grid[j*halfsize + y][i*halfsize + x]
+                            cell = self._grid[i*halfsize + y][j*halfsize + x]
                             halite_amount += cell.halite_amount
                             row.append(cell)
                         subgrid.append(row)
                     child = ResourceTree(subgrid, halite_amount, parent=self)
                     children.append(child)
-        elif self.size > 1:
+        elif self.size % 2 == 1 and self.size != 1:
             for y in range(self.size):
                 for x in range(self.size):
                     child = ResourceTree([[self._grid[y][x]]], self._grid[y][x].halite_amount, parent=self)
@@ -63,11 +72,8 @@ class ResourceTree(object):
                 if child.in_range(position):
                     child.extract(position)
 
-    def _subtract(self, halite_amount, initial=False):
-        if (initial):
-            self.halite_amount -= halite_amount // 4
-        else:
-            self.halite_amount -= halite_amount
+    def _subtract(self, halite_amount):
+        self.halite_amount -= halite_amount
         if self.parent:
             self.parent._subtract(halite_amount)
 
@@ -78,7 +84,7 @@ class ResourceTree(object):
         # logging.debug(f"center: {self.center} - {source} - {game_map.calculate_distance(source, self.center)}")
         # logging.debug(f"self.size: {self.size} : {self.halite_amount}")
         if self.size == 1:
-            self._subtract(self.halite_amount, initial=True)
+            self._subtract(self.halite_amount)
             return self._grid[0][0].position
         else:
             max_halite = 0
@@ -87,11 +93,32 @@ class ResourceTree(object):
 
             for child in self.children:
                 distance_penalty = game_map.calculate_distance(source, self.center)
-                if child.halite_amount * pow(0.9, distance_penalty) >= max_halite:
-                    max_halite = child.halite_amount
+                penalized_halite = child.halite_amount * pow(0.9, distance_penalty)
+                # logging.debug(f"penalized halite: {source} || {self.center} || {distance_penalty} || {penalized_halite}")
+                if penalized_halite >= max_halite:
+                    max_halite = penalized_halite
                     best_child = child
             return best_child.follow_max(game_map, source)
 
     def _debug(self):
+        if self.size == 1:
+            logging.debug(self._grid[0][0].position)
+        else:
+            for child in self.children:
+                child._debug()
+
+    def as_array(self):
+        grid = []
         for y in range(self.size):
-            logging.debug(self._grid[y])
+            row = []
+            for x in range(self.size):
+                row.append(self._grid[y][x].halite_amount)
+            grid.append(row)
+        return grid
+
+    def children_as_array(self):
+        grids = []
+        for c in self.children:
+            # logging.debug(f"child size: {self.size} | {c.size}")
+            grids.append(c.as_array())
+        return grids
