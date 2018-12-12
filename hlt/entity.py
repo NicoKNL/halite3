@@ -55,6 +55,7 @@ class Ship(Entity):
     def __init__(self, owner, id, position, halite_amount):
         super().__init__(owner, id, position)
         self.halite_amount = halite_amount
+        self.task = "gather"
 
     @property
     def is_full(self):
@@ -64,6 +65,9 @@ class Ship(Entity):
     def make_dropoff(self):
         """Return a move to transform this ship into a dropoff."""
         return "{} {}".format(commands.CONSTRUCT, self.id)
+
+    def set_task(self, task):
+        self.task = task
 
     def can_move(self, cell):
         cost = floor(0.10 * cell.halite_amount)

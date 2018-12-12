@@ -342,7 +342,10 @@ while True:
     # Finally start resolving all ships that CAN move, and want or should move
     for ship in ship_queue:
         current_cell = game_map[ship]
-        if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE:
+        if ship.position == me.shipyard.position:
+            ship.task = "gather"
+
+        if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE or ship.task == "turn in":
             # Case: We need to turn in our halite
             target = me.shipyard.position
         else:
