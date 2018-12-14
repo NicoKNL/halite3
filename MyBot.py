@@ -9,6 +9,7 @@ from hlt import constants
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Direction, Position
+from hlt.resource_tree import ResourceTree
 
 # This library allows you to generate random numbers.
 
@@ -164,7 +165,7 @@ def weighted_cleanup(game_map, ship, shipyard):
     return best_target[0]
 
 
-def dijkstra_a_to_b(game_map, source, target, offset=1):
+def dijkstra_a_to_b(game_map, source, target, offset=1, cheapest=True):
     if source == target:
         return Direction.Still
 
@@ -202,7 +203,7 @@ def dijkstra_a_to_b(game_map, source, target, offset=1):
             position = Position(x, y)
             distance_map[position] = {
                 "distance": INF * 32,
-                "previouis": None
+                "previous": None
             }
             queue.append(position)
 
@@ -222,10 +223,16 @@ def dijkstra_a_to_b(game_map, source, target, offset=1):
                 neighbour = game_map[pos]
 
                 # Calculate the cost of traveling to that neighbour
-                if game_map[pos].is_occupied:
-                    neighbour_weight = INF
+                if cheapest:
+                    if game_map[pos].is_occupied:
+                        neighbour_weight = INF
+                    else:
+                        neighbour_weight = neighbour.halite_amount
                 else:
-                    neighbour_weight = neighbour.halite_amount
+                    if game_map[pos].is_occupied:
+                        neighbour_weight = 1
+                    else:
+                        neighbour_weight = INF - neighbour.halite_amount
                 # neighbour_weight = neighbour.halite_amount if not game_map[pos].is_occupied else INF
                 # logging.debug(f"Neighbour: {pos} | {neighbour_weight} | occupied: {game_map[pos].is_occupied} | ship id {game_map[pos].ship}")
 
@@ -279,6 +286,22 @@ def safe_greedy_move(game_map, source, target):
     return closest_to_target[0]
 
 
+def distance_match(source, targets):
+    target = None
+    dist = 0
+
+    for t in targets:
+        t_dist = game_map.calculate_distance(source, t)
+        if game_map.calculate_distance(source, t) > dist:
+            dist = t_dist
+            target = t
+
+    logging.debug(f"targets A: {targets}")
+    targets.pop(targets.index(target))
+    logging.debug(f"targets B: {targets}")
+    return targets, target
+
+
 """ <<<Game Loop>>> """
 while True:
 
@@ -288,6 +311,21 @@ while True:
     me = game.me
     game_map = game.game_map
 
+    # Build the RESOURCE TREE
+    logging.debug("building")
+    tree = ResourceTree(game_map, game_map.total_halite)
+
+    # tree_viz = ""
+    # for row in tree.as_array():
+    #     for val in row:
+    #         tree_viz += '{:4}'.format(val)
+    #     tree_viz += '\n'
+    #
+    # logging.debug(tree_viz)
+    # logging.debug("--------------------------------------------")
+
+    # tree._debug()
+    # time.sleep(2)
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     #   end of the turn.
     ship_queue = me.get_ships()
@@ -340,6 +378,39 @@ while True:
     ship_queue = ship_queue_tmp
 
     # Finally start resolving all ships that CAN move, and want or should move
+    target_candidates = []
+
+    for _ in range(len(ship_queue)):
+        logging.debug("--------------------------")
+        logging.debug(f"shipyard pos: {me.shipyard.position}")
+        target_candidates.append(tree.follow_max(game_map, me.shipyard.position))
+        logging.debug(f"targets: {target_candidates}")
+        logging.debug("--------------------------")
+
+    # tree_viz = ""
+    # for row in tree.as_array():
+    #     for val in row:
+    #         tree_viz += '{:4}'.format(val)
+    #     tree_viz += '\n'
+    #
+    # logging.debug(tree_viz)
+    # logging.debug("--------------------------------------------")
+    #
+    #
+    #
+    # a, b, c, d = tree.children_as_array()
+    #
+    # for each in [a, b, c, d]:
+    #     c_viz = ""
+    #     for row in each:
+    #         for val in row:
+    #             c_viz += '{:4}'.format(val)
+    #         c_viz += '\n'
+    #     logging.debug(c_viz)
+    #     logging.debug("--------------------------------------------")
+    #
+    # time.sleep(3)
+
     for ship in ship_queue:
         current_cell = game_map[ship]
         if ship.position == me.shipyard.position:
@@ -348,11 +419,14 @@ while True:
         if ship.halite_amount >= FILL_RATIO * constants.MAX_HALITE or ship.task == "turn in":
             # Case: We need to turn in our halite
             target = me.shipyard.position
+            cheapest = True
         else:
             # Case: Gather more resources
-            target = weighted_cleanup(game_map, ship, me.shipyard)
+            target_candidates, target = distance_match(ship.position, target_candidates)
+            cheapest = False
+            # target = weighted_cleanup(game_map, ship, me.shipyard)
 
-        new_dir = dijkstra_a_to_b(game_map, ship.position, target)
+        new_dir = dijkstra_a_to_b(game_map, ship.position, target, cheapest=cheapest)
 
         # Final check if the move is actually safe as Dijkstra can result in an unsafe move when 1 unit away from target
         new_position = game_map.normalize(ship.position.directional_offset(new_dir))

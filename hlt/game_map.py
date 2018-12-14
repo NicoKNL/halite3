@@ -309,3 +309,13 @@ class GameMap:
 
     def register_move(self, ship, target):
         self._move_map[target.y][target.x] = ship
+    def as_array(self):
+        grid = []
+        for y in range(self.height):
+            row = []
+            for x in range(self.width):
+                row.append(self[Position(x, y)])
+            grid.append(row)
+        return grid
+
+
