@@ -14,6 +14,7 @@ def load_constants(constants):
     global INSPIRATION_ENABLED, INSPIRATION_RADIUS, INSPIRATION_SHIP_COUNT
     global INSPIRED_EXTRACT_RATIO, INSPIRED_BONUS_MULTIPLIER, INSPIRED_MOVE_COST_RATIO
     global WIDTH, HEIGHT
+    global INF
 
     if 'map_width' in constants:
         WIDTH = constants['map_width']
@@ -65,6 +66,8 @@ def load_constants(constants):
     """An inspired ship instead spends 1/X% halite to move."""
     INSPIRED_MOVE_COST_RATIO = constants['INSPIRED_MOVE_COST_RATIO']
 
+    """Pseudo infinity"""
+    INF = 999999
 
 # TODO remove once width/height are sent by server (#78)
 def set_dimensions(width, height):

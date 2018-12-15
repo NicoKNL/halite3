@@ -1,11 +1,11 @@
 import queue
+import logging
 
 from . import constants
 from .entity import Entity, Shipyard, Ship, Dropoff
 from .player import Player
 from .positionals import Direction, Position
 from .common import read_input
-
 
 class MapCell:
     """A cell on the game map."""
@@ -163,6 +163,102 @@ class GameMap:
                 return direction
 
         return Direction.Still
+
+    def dijkstra_a_to_b(self, source, target, offset=1, cheapest=True):
+        if source == target:
+            return Direction.Still
+
+        min_x = min(source.x, target.x)
+        max_x = max(source.x, target.x)
+
+        min_y = min(source.y, target.y)
+        max_y = max(source.y, target.y)
+
+        dx = max_x - min_x
+        dy = max_y - min_y
+
+        dx_wrapped = self.width - dx
+        dy_wrapped = self.height - dy
+
+        if dx < dx_wrapped:
+            rx = range(min_x - offset, max_x + offset + 1)
+        else:
+            rx = range(max_x - offset, min_x + self.width + offset + 1)
+
+        if dy < dy_wrapped:
+            ry = range(min_y - offset, max_y + offset + 1)
+        else:
+            ry = range(max_y - offset, min_y + self.height + offset + 1)
+
+        rx = [x % self.width for x in rx]
+        ry = [y % self.height for y in ry]
+
+        # initialize distances
+        distance_map = {
+            source: {
+                "distance": 0,
+                "previous": None}
+        }
+        queue = [source]
+
+        for x in rx:
+            for y in ry:
+                pos = Position(x, y)
+                if pos == source:
+                    continue
+
+                distance_map[pos] = {
+                    "distance": constants.INF * 32,
+                    "previous": None
+                }
+                queue.append(pos)
+
+        logging.debug(queue)
+        # Dijkstra
+        #   Calculating the cheapest path to each respective node in the grid
+        while len(queue):
+            # Take the item in the queue with the lowest distance and remove it from the queue
+            node = sorted(queue, key=lambda position: distance_map[position]["distance"])[0]
+            queue.pop(queue.index(node))
+
+            # For each neighbouring position
+            for pos in node.get_surrounding_cardinals():
+                # validate cell is within search bounds
+                if pos.x in rx and pos.y in ry:
+                    neighbour = self[pos]
+
+                    # Calculate the cost of traveling to that neighbour
+                    if cheapest:
+                        if self[pos].is_occupied:
+                            neighbour_weight = constants.INF
+                        else:
+                            neighbour_weight = neighbour.halite_amount
+                    else:
+                        if self[pos].is_occupied:
+                            neighbour_weight = 1
+                        else:
+                            neighbour_weight = constants.INF - neighbour.halite_amount
+                    # neighbour_weight = neighbour.halite_amount if not game_map[pos].is_occupied else INF
+                    # logging.debug(f"Neighbour: {pos} | {neighbour_weight} | occupied: {game_map[pos].is_occupied} | ship id {game_map[pos].ship}")
+
+                    # Calculate the distance of the path to the neighbour
+                    dist_to_neighbour = distance_map[node]["distance"] + neighbour_weight
+
+                    # If path is shorter than any other current path to that neighbour, then we update the path to that node
+                    if dist_to_neighbour < distance_map[pos]["distance"]:
+                        distance_map[pos]["distance"] = dist_to_neighbour
+                        distance_map[pos]["previous"] = node
+
+        # Traverse from the target to the source by following all "previous" nodes that we calculated
+        path_node = target
+        while path_node != source:
+            prev_path_node = distance_map[path_node]["previous"]
+            if prev_path_node == source:
+                for d in Direction.get_all_cardinals():  # .values():
+                    if source.directional_offset(d) == path_node:
+                        return d
+
+            path_node = prev_path_node
 
     @staticmethod
     def _generate():
