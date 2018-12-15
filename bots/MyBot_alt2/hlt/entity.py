@@ -4,7 +4,7 @@ from . import commands, constants
 from .positionals import Direction, Position
 from .common import read_input
 
-from math import floor, ceil
+from math import floor
 import logging
 
 class Entity(abc.ABC):
