@@ -30,6 +30,51 @@ game.ready("Dijkstra fix")
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 
+def weighted_cleanup(ship):
+    global game_map
+    # TODO: Don't do this per ship, but once per game turn and figure out positions for each ship that way
+    minimum = 30
+    current_offset = 1
+    running_sum = 0
+    distance_limit = 5
+    found = False
+    ship_seen = False
+    # Search with an expanding ring
+    while not found and current_offset <= game_map.height:  # possible max search range
+        offsets = list(range(-current_offset, current_offset + 1))
+        offsets = [(x, y) for x in offsets for y in offsets]
+
+        targets = []
+        for offset in offsets:
+            cell_pos = game_map.normalize(me.shipyard.position + Position(*offset))
+            cell = game_map[cell_pos]
+            if cell.halite_amount >= minimum and not cell.is_occupied:
+                targets.append(cell_pos)
+
+            if ship.position == cell_pos:
+                ship_seen = True
+
+        if targets:
+            best_target = (None, constants.INF)  # For now best => closest
+            for target in targets:
+                distance = game_map.calculate_distance(ship.position, target)
+                if distance < best_target[1] and distance < distance_limit:
+                    best_target = (target, distance)
+                    logging.debug(f"{ship.id} best_target found: {best_target}")
+
+            if best_target[0] is not None:
+                logging.debug(f"{ship.id} | Found!")
+                found = True
+
+        current_offset += 1
+        if ship_seen:
+            distance_limit *= 1.5
+
+    logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
+
+    return best_target[0]
+
+
 def evaluate_can_move(ships):
     global game_map
     global command_queue
@@ -66,27 +111,69 @@ def evaluate_other(ships):
     global game_map
     global command_queue
 
+    first_movers, gather_ships, deposit_ships, suicide_ships = resolve_tasks(ships)
+
+    for ship in first_movers:
+        target = weighted_cleanup(ship)
+        direction = game_map.safe_navigate(ship.position, target, offset=0)
+        move = ship.move(direction)
+        game_map.register_move(ship, direction)
+        command_queue.append(move)
+
+    for ship in sorted(deposit_ships,
+                       key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
+                       reverse=False):
+        target = me.shipyard.position
+        direction = game_map.safe_navigate(ship.position, target, offset=0)
+        move = ship.move(direction)
+        game_map.register_move(ship, direction)
+        command_queue.append(move)
+
+    for ship in sorted(suicide_ships,
+                       key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
+                       reverse=False):
+        target = me.shipyard.position
+        direction = game_map.safe_navigate(ship.position, target, offset=0)
+        move = ship.move(direction)
+        game_map.register_move(ship, direction)
+        command_queue.append(move)
+
+    for ship in sorted(gather_ships,
+                       key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
+                       reverse=True):
+        # target = ship.position + Position(5, 5)  # Target to the north
+        target = weighted_cleanup(ship)
+        direction = game_map.safe_navigate(ship.position, target, offset=0)
+        move = ship.move(direction)
+        game_map.register_move(ship, direction)
+        command_queue.append(move)
+
+
+def resolve_tasks(ships):
+    global game_map
+    first_movers = []
+    gather_ships = []
+    deposit_ships = []
+    suicide_ships = []
+
+    turns_remaining = constants.MAX_TURNS - game.turn_number
     for ship in ships:
-        if ship.position == me.shipyard.position:
+        if ship.task == Task.Suicide or game_map.calculate_distance(me.shipyard.position, ship.position) + 10 >= turns_remaining:
+            suicide_ships.append(ship)
+
+        elif ship.halite_amount > 0.9 * constants.MAX_HALITE:
+            ship.set_task(Task.Deposit)
+            deposit_ships.append(ship)
+
+        elif ship.position == me.shipyard.position or ship.task == Task.Gather:
             ship.set_task(Task.Gather)
 
-        if ship.halite_amount > 0.9 * constants.MAX_HALITE:
-            ship.set_task(Task.Deposit)
+            if ship.position == me.shipyard.position:
+                first_movers.append(ship)
+            else:
+                gather_ships.append(ship)
 
-        if ship.task == Task.Gather:
-            target = ship.position + Position(5, 5)  # Target to the north
-            direction = game_map.safe_navigate(ship.position, target)
-            move = ship.move(direction)
-            game_map.register_move(ship, direction)
-            command_queue.append(move)
-
-        if ship.task == Task.Deposit:
-            target = me.shipyard.position
-            direction = game_map.safe_navigate(ship.position, target)
-            move = ship.move(direction)
-            game_map.register_move(ship, direction)
-            command_queue.append(move)
-
+    return first_movers, gather_ships, deposit_ships, suicide_ships
 
 
 """ <<<Game Loop>>> """

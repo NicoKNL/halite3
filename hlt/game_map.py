@@ -194,8 +194,8 @@ class GameMap:
 
         return Direction.Still
 
-    def safe_navigate(self, source, target):
-        direction = self.dijkstra_a_to_b(source, target)
+    def safe_navigate(self, source, target, offset=1):
+        direction = self.dijkstra_a_to_b(source, target, offset=offset)
         new_position = source.directional_offset(direction)
 
         if self[new_position].is_occupied:
