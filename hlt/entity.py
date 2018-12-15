@@ -3,6 +3,7 @@ import abc
 from . import commands, constants
 from .positionals import Direction, Position
 from .common import read_input
+from .task import Task
 
 
 class Entity(abc.ABC):
@@ -61,6 +62,10 @@ class Ship(Entity):
     def __init__(self, owner, id, position, halite_amount):
         super().__init__(owner, id, position)
         self.halite_amount = halite_amount
+        self.task = Task.Gather
+
+    def set_task(self, task):
+        self.task = task
 
     @property
     def is_full(self):
