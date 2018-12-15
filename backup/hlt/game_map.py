@@ -5,13 +5,16 @@ from .entity import Entity, Shipyard, Ship, Dropoff
 from .player import Player
 from .positionals import Direction, Position
 from .common import read_input
-
+import logging
 
 class MapCell:
     """A cell on the game map."""
     def __init__(self, position, halite_amount):
         self.position = position
         self.halite_amount = halite_amount
+        self.travel_weight = 0
+        self.distance_multiplier = 1
+        self.bonus = False
         self.ship = None
         self.structure = None
 
@@ -51,6 +54,9 @@ class MapCell:
         """
         self.ship = ship
 
+    def mark_safe(self):
+        self.ship = None
+
     def __eq__(self, other):
         return self.position == other.position
 
@@ -68,10 +74,16 @@ class GameMap:
     Can be indexed by a position, or by a contained entity.
     Coordinates start at 0. Coordinates are normalized for you
     """
-    def __init__(self, cells, width, height):
+    def __init__(self, cells, width, height, me):
+        self.me = me  # Player object
         self.width = width
         self.height = height
         self._cells = cells
+        self._move_map = None
+
+        self.max_halite = 0
+        self.total_halite = 0
+        self.ship_count = 0
 
     def __getitem__(self, location):
         """
@@ -85,6 +97,32 @@ class GameMap:
         elif isinstance(location, Entity):
             return self._cells[location.position.y][location.position.x]
         return None
+
+    def position_is_safe(self, source):
+        if not isinstance(source, Position):
+            source = source.position
+
+        if self[source].is_occupied:
+            if source == self.me.shipyard.position and self[source].ship.owner != self.me.id:
+                return True
+            else:
+                return False
+
+        for pos in source.get_surrounding_cardinals():
+            if self[pos].is_occupied:
+                if self[pos].ship.owner != self.me.id:
+                    return False
+        return True
+
+    def enemy_is_close(self, source):
+        if not isinstance(source, Position):
+            source = source.position
+
+        for pos in source.get_surrounding_cardinals():
+            if self[pos].is_occupied:
+                if self[pos].ship.owner != self.me.id:
+                    return True
+        return False
 
     def calculate_distance(self, source, target):
         """
@@ -165,7 +203,7 @@ class GameMap:
         return Direction.Still
 
     @staticmethod
-    def _generate():
+    def _generate(me):
         """
         Creates a map object from the input given by the game engine
         :return: The map object
@@ -175,10 +213,9 @@ class GameMap:
         for y_position in range(map_height):
             cells = read_input().split()
             for x_position in range(map_width):
-                game_map[y_position][x_position] = MapCell(Position(x_position, y_position,
-                                                                    normalize=False),
+                game_map[y_position][x_position] = MapCell(Position(x_position, y_position),
                                                            int(cells[x_position]))
-        return GameMap(game_map, map_width, map_height)
+        return GameMap(game_map, map_width, map_height, me)
 
     def _update(self):
         """
@@ -190,7 +227,95 @@ class GameMap:
         for y in range(self.height):
             for x in range(self.width):
                 self[Position(x, y)].ship = None
+                self[Position(x, y)].bonus = False  # Reset bonus
 
         for _ in range(int(read_input())):
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
+            logging.debug(f"({cell_x}, {cell_y}): {cell_energy}")
+
+        # Recalculating max_halite in field
+        self.max_halite = 0  # Reset
+        self.total_halite = 0  # Reset
+        logging.debug(f"Resetting max halite: {self.max_halite}")
+        for y in range(self.height):
+            for x in range(self.width):
+                self.max_halite = max(self.max_halite, self[Position(x, y)].halite_amount)
+                self.total_halite += self[Position(x, y)].halite_amount
+
+        logging.debug(f"Calculated max halite: {self.max_halite}")
+
+    def _update_bonuses(self):
+        offsets = [(x, y) for x in range(-4, 5) for y in range(-4, 5)]
+        for y in range(self.height):
+            for x in range(self.width):
+                enemy_ships = 0
+                for offset in offsets:
+                    cell = self[Position(x + offset[0], y + offset[1])]
+                    if cell.is_occupied:
+                        if cell.ship.owner != self.me:
+                            enemy_ships += 1
+
+                if enemy_ships >= 2:
+                    self[Position(x, y)].bonus = True
+
+    def _update_distance_multipliers(self):
+        for y in range(self.height):
+            for x in range(self.width):
+                cell = self[Position(x, y)]
+                # TODO: Also consider dropoffs
+                distance = self.calculate_distance(cell.position, self.me.shipyard.position)
+                cell.distance_multiplier = distance
+
+    def _update_unsafe_cells(self):
+        # Construct array with all shipyard related positions to prevent getting owned by a cheese strat
+        # TODO: Include dropoffs when implemented
+        shipyard_positions = self.me.shipyard.position.get_surrounding_cardinals()
+        shipyard_positions.append(self.me.shipyard.position)
+
+        self.ship_count = 0  # Reset
+
+        # Figure out where the enemy ships are
+        enemy_ships = []
+        for y in range(self.height):
+            for x in range(self.width):
+                if self[Position(x, y)].is_occupied:
+                    ship = self[Position(x, y)].ship
+                    if ship.owner != self.me.id and ship.position not in shipyard_positions:
+                        enemy_ships.append(ship)
+
+                    if ship.owner == self.me.id:
+                        self.ship_count += 1
+
+        # Mark the areas around the relevant enemy ships as containing an enemy as well
+        offsets = [(x, y) for x in range(-1, 2) for y in range(-1, 2)]
+        for ship in enemy_ships:
+            for offset in offsets:
+                position = self.normalize(Position(x + offset[0], y + offset[1]))
+                # Only mark positions which are not already marked as occupied as I do not want to override my ships
+                if not self[position].is_occupied:
+                    self[position].mark_unsafe(ship)
+
+    def _update_move_map(self):
+        move_map = [[None for x in range(self.width)] for y in range(self.height)]
+        for y in range(self.height):
+            for x in range(self.width):
+                cell = self[Position(x, y)]
+                if cell.is_occupied:
+                    ship = cell.ship
+                    if (ship.owner == self.me.id and not ship.can_move(cell)) or ship.owner != self.me.id:
+                        move_map[y][x] = ship
+        self._move_map = move_map
+
+    def register_move(self, ship, target):
+        self._move_map[target.y][target.x] = ship
+    def as_array(self):
+        grid = []
+        for y in range(self.height):
+            row = []
+            for x in range(self.width):
+                row.append(self[Position(x, y)])
+            grid.append(row)
+        return grid
+
+

@@ -1,5 +1,4 @@
 from . import commands
-from . import constants
 
 
 class Direction:
@@ -63,16 +62,9 @@ class Direction:
 
 
 class Position:
-    def __init__(self, x, y, normalize=True):
+    def __init__(self, x, y):
         self.x = x
         self.y = y
-
-        if normalize:
-            self.normalize()
-
-    def normalize(self):
-        self.x = self.x % constants.WIDTH
-        self.y = self.y % constants.HEIGHT
 
     def directional_offset(self, direction):
         """
@@ -97,13 +89,11 @@ class Position:
     def __iadd__(self, other):
         self.x += other.x
         self.y += other.y
-        self.normalize()
         return self
 
     def __isub__(self, other):
         self.x -= other.x
         self.y -= other.y
-        self.normalize()
         return self
 
     def __abs__(self):

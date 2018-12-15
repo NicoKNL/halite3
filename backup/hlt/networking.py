@@ -34,9 +34,7 @@ class Game:
         for player in range(num_players):
             self.players[player] = Player._generate()
         self.me = self.players[self.my_id]
-        self.game_map = GameMap._generate()
-
-        constants.set_dimensions(self.game_map.width, self.game_map.height)
+        self.game_map = GameMap._generate(self.me)
 
     def ready(self, name):
         """
@@ -62,11 +60,20 @@ class Game:
         # Mark cells with ships as unsafe for navigation
         for player in self.players.values():
             for ship in player.get_ships():
-                self.game_map[ship.position].mark_unsafe(ship)
+                if player.id != self.my_id:
+                    self.game_map[ship.position].mark_unsafe(ship)
+                else:
+                    self.game_map[ship.position].mark_unsafe(ship)
+
 
             self.game_map[player.shipyard.position].structure = player.shipyard
             for dropoff in player.get_dropoffs():
                 self.game_map[dropoff.position].structure = dropoff
+
+        self.game_map._update_bonuses()
+        self.game_map._update_distance_multipliers()
+        self.game_map._update_unsafe_cells()
+        self.game_map._update_move_map()
 
     @staticmethod
     def end_turn(commands):
