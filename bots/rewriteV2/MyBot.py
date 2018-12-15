@@ -23,7 +23,7 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("RewriteV2")
+game.ready("Dijkstra fix")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
@@ -76,7 +76,7 @@ def hunt_close_enemy(ship):
 def weighted_cleanup(ship):
     global game_map
     # TODO: Don't do this per ship, but once per game turn and figure out positions for each ship that way
-    minimum = 30
+    minimum = min(game_map.max_halite, 30)
     current_offset = 1
     running_sum = 0
     distance_limit = 5

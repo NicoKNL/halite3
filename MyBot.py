@@ -76,7 +76,7 @@ def hunt_close_enemy(ship):
 def weighted_cleanup(ship):
     global game_map
     # TODO: Don't do this per ship, but once per game turn and figure out positions for each ship that way
-    minimum = 30
+    minimum = min(game_map.max_halite, 30)
     current_offset = 1
     running_sum = 0
     distance_limit = 5
