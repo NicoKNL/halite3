@@ -49,18 +49,26 @@ while True:
     for ship in me.get_ships():
         # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
         #   Else, collect halite.
-        if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
-            target = ship.position + Position(1, 3) # Target to the north
-            direction = game_map.dijkstra_a_to_b(ship.position, target)
-            command_queue.append(
-                ship.move(direction)
-            )
+        if not game_map[ship].can_move():
+            move = ship.stay_still()
+            game_map.register_move(ship, Direction.Still)
+            command_queue.append(move)
+
+        elif not game_map[ship].should_move(30):
+            move = ship.stay_still()
+            game_map.register_move(ship, Direction.Still)
+            command_queue.append(move)
+
         else:
-            command_queue.append(ship.stay_still())
+            target = ship.position + Position(1, 3) # Target to the north
+            direction = game_map.safe_navigate(ship.position, target)
+            move = ship.move(direction)
+            game_map.register_move(ship, direction)
+            command_queue.append(move)
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if len(me.get_ships()) < 1 and game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if len(me.get_ships()) < 1 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:  # and game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
         command_queue.append(me.shipyard.spawn())
 
     # Send your moves back to the game environment, ending this turn.

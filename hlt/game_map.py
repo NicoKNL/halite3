@@ -1,5 +1,6 @@
 import queue
 import logging
+from math import floor
 
 from . import constants
 from .entity import Entity, Shipyard, Ship, Dropoff
@@ -14,6 +15,11 @@ class MapCell:
         self.halite_amount = halite_amount
         self.ship = None
         self.structure = None
+        self.claim = None
+
+    @property
+    def is_claimed(self):
+        return self.claim is not None
 
     @property
     def is_empty(self):
@@ -43,6 +49,9 @@ class MapCell:
         """
         return None if not self.structure else type(self.structure)
 
+    def mark_safe(self):
+        self.ship = None
+
     def mark_unsafe(self, ship):
         """
         Mark this cell as unsafe (occupied) for navigation.
@@ -50,6 +59,19 @@ class MapCell:
         Use in conjunction with GameMap.naive_navigate.
         """
         self.ship = ship
+
+    def can_move(self):
+        if not self.ship:
+            raise RuntimeError("No ship in this cell!")
+        cost = floor(0.10 * self.halite_amount)
+        if cost > self.ship.halite_amount:
+            return False
+        return True
+
+    def should_move(self, minimum):
+        if self.halite_amount >= minimum and self.ship.halite_amount < constants.MAX_HALITE:
+            return False
+        return True
 
     def __eq__(self, other):
         return self.position == other.position
@@ -146,6 +168,14 @@ class GameMap:
                                   else Direction.invert(y_cardinality))
         return possible_moves
 
+    def register_move(self, ship, direction):
+        new_position = ship.position.directional_offset(direction)
+
+        if self[new_position].is_occupied and not direction == Direction.Still:
+            raise RuntimeError("Already claimed!")
+        self[ship].mark_safe()
+        self[new_position].mark_unsafe(ship)
+
     def naive_navigate(self, ship, destination):
         """
         Returns a singular safe move towards the destination.
@@ -163,6 +193,15 @@ class GameMap:
                 return direction
 
         return Direction.Still
+
+    def safe_navigate(self, source, target):
+        direction = self.dijkstra_a_to_b(source, target)
+        new_position = source.directional_offset(direction)
+
+        if self[new_position].is_occupied:
+            direction = self.safe_greedy_move(source, target)
+
+        return direction
 
     def dijkstra_a_to_b(self, source, target, offset=1, cheapest=True):
         if source == target:
@@ -229,12 +268,12 @@ class GameMap:
 
                     # Calculate the cost of traveling to that neighbour
                     if cheapest:
-                        if self[pos].is_occupied:
+                        if neighbour.is_occupied:
                             neighbour_weight = constants.INF
                         else:
                             neighbour_weight = neighbour.halite_amount
                     else:
-                        if self[pos].is_occupied:
+                        if neighbour.is_occupied:
                             neighbour_weight = 1
                         else:
                             neighbour_weight = constants.INF - neighbour.halite_amount
@@ -259,6 +298,35 @@ class GameMap:
                         return d
 
             path_node = prev_path_node
+
+    def safe_greedy_move(self, source, target):
+        safe_moves = []
+
+        # Evaluate if standing still is safe
+        if self.position_is_safe(source):
+            safe_moves.append(Direction.Still)
+
+        # Evaluate if any of the cardinal directions are safe
+        for direction in Direction.get_all_cardinals():
+            new_position = self.normalize(source.directional_offset(direction))
+            if not self[new_position].is_occupied:
+                safe_moves.append(direction)
+
+        # The scenario where we are fucked
+        if not safe_moves:
+            logging.debug(f"NO SAFE MOVES: {source}")
+            return Direction.Still
+
+        # Else we greedily check which move brings us closest to our target
+        closest_to_target = (None, constants.INF)
+        for direction in safe_moves:
+            position = source.directional_offset(direction)
+            distance = self.calculate_distance(position, target)
+            if distance < closest_to_target[1]:
+                closest_to_target = (direction, distance)
+
+        # Returns direction
+        return closest_to_target[0]
 
     @staticmethod
     def _generate():

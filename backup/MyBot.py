@@ -165,95 +165,95 @@ def weighted_cleanup(game_map, ship, shipyard):
     return best_target[0]
 
 
-def dijkstra_a_to_b(game_map, source, target, offset=1, cheapest=True):
-    if source == target:
-        return Direction.Still
-
-    dx = abs(target.x - source.x)
-    dy = abs(target.y - source.y)
-
-    xdir = 1 if target.x > source.x else -1
-    ydir = 1 if target.y > source.y else -1
-
-    # Valid x and y positions in range
-    if xdir == 1:
-        rx = range(source.x - offset, target.x + offset + 1)
-    else:
-        rx = range(target.x - offset, source.x + offset + 1)
-
-    if ydir == 1:
-        ry = range(source.y - offset, target.y + offset + 1)
-    else:
-        ry = range(target.y - offset, source.y + offset + 1)
-
-    # initialize distances
-    distance_map = {
-        source: {
-            "distance": 0,
-            "previous": None}
-    }
-    queue = [source]
-
-    for offset_x in range(-offset, dx + offset + 1):
-        for offset_y in range(-offset, dy + offset + 1):
-            if offset_x == 0 and offset_y == 0:
-                continue
-            x = source.x + offset_x * xdir
-            y = source.y + offset_y * ydir
-            position = Position(x, y)
-            distance_map[position] = {
-                "distance": INF * 32,
-                "previous": None
-            }
-            queue.append(position)
-
-    # Dijkstra
-    #   Calculating the cheapest path to each respective node in the grid
-    while len(queue):
-        # Take the item in the queue with the lowest distance and remove it from the queue
-        node = sorted(queue, key=lambda position: distance_map[position]["distance"])[0]
-        queue.pop(queue.index(node))
-
-        # For each neighbouring position
-        for pos in node.get_surrounding_cardinals():
-            pos = game_map.normalize(pos)  # Ensure position is in normalized coordinates
-
-            # validate cell is within search bounds
-            if pos.x in rx and pos.y in ry:
-                neighbour = game_map[pos]
-
-                # Calculate the cost of traveling to that neighbour
-                if cheapest:
-                    if game_map[pos].is_occupied:
-                        neighbour_weight = INF
-                    else:
-                        neighbour_weight = neighbour.halite_amount
-                else:
-                    if game_map[pos].is_occupied:
-                        neighbour_weight = 1
-                    else:
-                        neighbour_weight = INF - neighbour.halite_amount
-                # neighbour_weight = neighbour.halite_amount if not game_map[pos].is_occupied else INF
-                # logging.debug(f"Neighbour: {pos} | {neighbour_weight} | occupied: {game_map[pos].is_occupied} | ship id {game_map[pos].ship}")
-
-                # Calculate the distance of the path to the neighbour
-                dist_to_neighbour = distance_map[node]["distance"] + neighbour_weight
-
-                # If path is shorter than any other current path to that neighbour, then we update the path to that node
-                if dist_to_neighbour < distance_map[pos]["distance"]:
-                    distance_map[pos]["distance"] = dist_to_neighbour
-                    distance_map[pos]["previous"] = node
-
-    # Traverse from the target to the source by following all "previous" nodes that we calculated
-    path_node = target
-    while path_node != source:
-        prev_path_node = distance_map[path_node]["previous"]
-        if prev_path_node == source:
-            for d in Direction.get_all_cardinals(): #.values():
-                if game_map.normalize(source.directional_offset(d)) == path_node:
-                    return d
-
-        path_node = prev_path_node
+# def dijkstra_a_to_b(game_map, source, target, offset=1, cheapest=True):
+#     if source == target:
+#         return Direction.Still
+#
+#     dx = abs(target.x - source.x)
+#     dy = abs(target.y - source.y)
+#
+#     xdir = 1 if target.x > source.x else -1
+#     ydir = 1 if target.y > source.y else -1
+#
+#     # Valid x and y positions in range
+#     if xdir == 1:
+#         rx = range(source.x - offset, target.x + offset + 1)
+#     else:
+#         rx = range(target.x - offset, source.x + offset + 1)
+#
+#     if ydir == 1:
+#         ry = range(source.y - offset, target.y + offset + 1)
+#     else:
+#         ry = range(target.y - offset, source.y + offset + 1)
+#
+#     # initialize distances
+#     distance_map = {
+#         source: {
+#             "distance": 0,
+#             "previous": None}
+#     }
+#     queue = [source]
+#
+#     for offset_x in range(-offset, dx + offset + 1):
+#         for offset_y in range(-offset, dy + offset + 1):
+#             if offset_x == 0 and offset_y == 0:
+#                 continue
+#             x = source.x + offset_x * xdir
+#             y = source.y + offset_y * ydir
+#             position = Position(x, y)
+#             distance_map[position] = {
+#                 "distance": INF * 32,
+#                 "previous": None
+#             }
+#             queue.append(position)
+#
+#     # Dijkstra
+#     #   Calculating the cheapest path to each respective node in the grid
+#     while len(queue):
+#         # Take the item in the queue with the lowest distance and remove it from the queue
+#         node = sorted(queue, key=lambda position: distance_map[position]["distance"])[0]
+#         queue.pop(queue.index(node))
+#
+#         # For each neighbouring position
+#         for pos in node.get_surrounding_cardinals():
+#             pos = game_map.normalize(pos)  # Ensure position is in normalized coordinates
+#
+#             # validate cell is within search bounds
+#             if pos.x in rx and pos.y in ry:
+#                 neighbour = game_map[pos]
+#
+#                 # Calculate the cost of traveling to that neighbour
+#                 if cheapest:
+#                     if game_map[pos].is_occupied:
+#                         neighbour_weight = INF
+#                     else:
+#                         neighbour_weight = neighbour.halite_amount
+#                 else:
+#                     if game_map[pos].is_occupied:
+#                         neighbour_weight = 1
+#                     else:
+#                         neighbour_weight = INF - neighbour.halite_amount
+#                 # neighbour_weight = neighbour.halite_amount if not game_map[pos].is_occupied else INF
+#                 # logging.debug(f"Neighbour: {pos} | {neighbour_weight} | occupied: {game_map[pos].is_occupied} | ship id {game_map[pos].ship}")
+#
+#                 # Calculate the distance of the path to the neighbour
+#                 dist_to_neighbour = distance_map[node]["distance"] + neighbour_weight
+#
+#                 # If path is shorter than any other current path to that neighbour, then we update the path to that node
+#                 if dist_to_neighbour < distance_map[pos]["distance"]:
+#                     distance_map[pos]["distance"] = dist_to_neighbour
+#                     distance_map[pos]["previous"] = node
+#
+#     # Traverse from the target to the source by following all "previous" nodes that we calculated
+#     path_node = target
+#     while path_node != source:
+#         prev_path_node = distance_map[path_node]["previous"]
+#         if prev_path_node == source:
+#             for d in Direction.get_all_cardinals(): #.values():
+#                 if game_map.normalize(source.directional_offset(d)) == path_node:
+#                     return d
+#
+#         path_node = prev_path_node
 
 
 def safe_greedy_move(game_map, source, target):
