@@ -5,6 +5,7 @@ import sys
 from .common import read_input
 from . import constants
 from .game_map import GameMap, Player
+from .positionals import Direction
 
 
 class Game:
@@ -63,6 +64,9 @@ class Game:
         for player in self.players.values():
             for ship in player.get_ships():
                 self.game_map[ship.position].mark_unsafe(ship)
+                if ship.owner != self.my_id:
+                    for neighbour_pos in ship.position.get_surrounding_cardinals():
+                        self.game_map[neighbour_pos].mark_unsafe(ship)
 
             self.game_map[player.shipyard.position].structure = player.shipyard
             for dropoff in player.get_dropoffs():

@@ -302,9 +302,7 @@ class GameMap:
     def safe_greedy_move(self, source, target):
         safe_moves = []
 
-        # Evaluate if standing still is safe
-        if self.position_is_safe(source):
-            safe_moves.append(Direction.Still)
+        safe_moves.append(Direction.Still)
 
         # Evaluate if any of the cardinal directions are safe
         for direction in Direction.get_all_cardinals():

@@ -256,34 +256,34 @@ def weighted_cleanup(game_map, ship, shipyard):
 #         path_node = prev_path_node
 
 
-def safe_greedy_move(game_map, source, target):
-    safe_moves = []
-
-    # Evaluate if standing still is safe
-    if game_map.position_is_safe(source):
-        safe_moves.append(Direction.Still)
-
-    # Evaluate if any of the cardinal directions are safe
-    for direction in Direction.get_all_cardinals():
-        new_position = game_map.normalize(source.directional_offset(direction))
-        if game_map.position_is_safe(new_position):
-            safe_moves.append(direction)
-
-    # The scenario where we are fucked
-    if not safe_moves:
-        logging.debug(f"NO SAFE MOVES: {source}")
-        return Direction.Still
-
-    # Else we greedily check which move brings us closest to our target
-    closest_to_target = (None, INF)
-    for direction in safe_moves:
-        position = game_map.normalize(source.directional_offset(direction))
-        distance = game_map.calculate_distance(position, target)
-        if distance < closest_to_target[1]:
-            closest_to_target = (direction, distance)
-
-    # Returns direction
-    return closest_to_target[0]
+# def safe_greedy_move(game_map, source, target):
+#     safe_moves = []
+#
+#     # Evaluate if standing still is safe
+#     if game_map.position_is_safe(source):
+#         safe_moves.append(Direction.Still)
+#
+#     # Evaluate if any of the cardinal directions are safe
+#     for direction in Direction.get_all_cardinals():
+#         new_position = game_map.normalize(source.directional_offset(direction))
+#         if game_map.position_is_safe(new_position):
+#             safe_moves.append(direction)
+#
+#     # The scenario where we are fucked
+#     if not safe_moves:
+#         logging.debug(f"NO SAFE MOVES: {source}")
+#         return Direction.Still
+#
+#     # Else we greedily check which move brings us closest to our target
+#     closest_to_target = (None, INF)
+#     for direction in safe_moves:
+#         position = game_map.normalize(source.directional_offset(direction))
+#         distance = game_map.calculate_distance(position, target)
+#         if distance < closest_to_target[1]:
+#             closest_to_target = (direction, distance)
+#
+#     # Returns direction
+#     return closest_to_target[0]
 
 
 def distance_match(source, targets):

@@ -60,7 +60,7 @@ while True:
             command_queue.append(move)
 
         else:
-            target = ship.position + Position(1, 3) # Target to the north
+            target = ship.position + Position(5, 5)  # Target to the north
             direction = game_map.safe_navigate(ship.position, target)
             move = ship.move(direction)
             game_map.register_move(ship, direction)
@@ -68,7 +68,7 @@ while True:
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if len(me.get_ships()) < 1 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:  # and game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if len(me.get_ships()) < 100 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:  # and game.turn_number <= 200 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
         command_queue.append(me.shipyard.spawn())
 
     # Send your moves back to the game environment, ending this turn.
