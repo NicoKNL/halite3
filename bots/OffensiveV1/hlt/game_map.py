@@ -256,6 +256,7 @@ class GameMap:
                     return direction
                 elif self[new_position].ship.owner == self.me and not self[new_position].is_claimed:
                     logging.debug(f"I own the ship there and the position is not yet claimed")
+                    return direction
                 else:
                     logging.debug(f"returning greedy move")
                     return self.safe_greedy_move(source, target)
