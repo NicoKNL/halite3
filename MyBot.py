@@ -12,6 +12,7 @@ from hlt.positionals import Direction, Position
 
 # This library allows you to generate random numbers.
 import random
+from math import ceil
 
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 #   (print statements) are reserved for the engine-bot communication.
@@ -58,17 +59,17 @@ def hunt_close_enemy(ship):
                 distance = game_map.calculate_distance(ship.position, target)
                 if distance < best_target[1] and distance < distance_limit:
                     best_target = (target, distance)
-                    logging.debug(f"{ship.id} best_target found: {best_target}")
+                    # logging.debug(f"{ship.id} best_target found: {best_target}")
 
             if best_target[0] is not None:
-                logging.debug(f"{ship.id} | Found!")
+                # logging.debug(f"{ship.id} | Found!")
                 found = True
 
         current_offset += 1
         if ship_seen:
             distance_limit *= 1.5
 
-    logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
+    # logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
 
     return best_target[0]
 
@@ -103,17 +104,17 @@ def weighted_cleanup(ship):
                 distance = game_map.calculate_distance(ship.position, target)
                 if distance < best_target[1] and distance < distance_limit:
                     best_target = (target, distance)
-                    logging.debug(f"{ship.id} best_target found: {best_target}")
+                    # logging.debug(f"{ship.id} best_target found: {best_target}")
 
             if best_target[0] is not None:
-                logging.debug(f"{ship.id} | Found!")
+                # logging.debug(f"{ship.id} | Found!")
                 found = True
 
         current_offset += 1
         if ship_seen:
             distance_limit *= 1.5
 
-    logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
+    # logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
 
     return best_target[0]
 
@@ -211,7 +212,7 @@ def resolve_tasks(ships):
 
     turns_remaining = constants.MAX_TURNS - game.turn_number
     for ship in ships:
-        if game_map.calculate_distance(me.shipyard.position, ship.position) + 10 >= turns_remaining:
+        if game_map.calculate_distance(me.shipyard.position, ship.position) + 6 + ceil(len(me.get_ships()) / 10) >= turns_remaining:
             if ship.task == Task.EndgameHunt:
                 hunting_ships.append(ship)
             elif ship.task == Task.Suicide:
@@ -223,7 +224,7 @@ def resolve_tasks(ships):
                 ship.set_task(Task.EndgameHunt)
                 hunting_ships.append(ship)
 
-        elif ship.halite_amount > 0.9 * constants.MAX_HALITE:
+        elif ship.halite_amount >= 0.9 * constants.MAX_HALITE or (ship.task == Task.Deposit and ship.position != me.shipyard.position):
             ship.set_task(Task.Deposit)
             deposit_ships.append(ship)
 

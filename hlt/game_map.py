@@ -211,6 +211,7 @@ class GameMap:
     def navigate(self, source, target, offset=1, ignore_dropoff=False):
         direction = self.dijkstra_a_to_b(source, target, offset=offset)
         new_position = source.directional_offset(direction)
+        logging.debug(f"#{self[source].ship.id} || source: {source} and target: {target} and new position: {new_position}")
 
         structures = self.get_neighbouring_structures(new_position, friendly=True, enemy=ignore_dropoff)
         structure_positions = [s.position for s in structures]
@@ -221,10 +222,13 @@ class GameMap:
             logging.debug(self[source].ship.task)
             logging.debug(ignore_dropoff)
             if ignore_dropoff or (self[new_position].is_occupied and self[new_position].ship.owner != self.me):
+                logging.debug(f"ignore dropoff: {ignore_dropoff} or new position is occupied and the ship is NOT owned by me")
                 return direction
             elif not self[new_position].is_claimed:
+                logging.debug(f"Position just isn't claimed")
                 return direction
             else:
+                logging.debug(f"I need to make a greedy move")
                 return self.safe_greedy_move(source, target)
 
         # In order to ignore the cheese strategy where they wait in front of your dropoff
@@ -240,22 +244,33 @@ class GameMap:
                 if self[new_position].ship.owner != self.me and not self[new_position].is_claimed:
                     logging.debug(f"returning same direction")
                     return direction
+                elif self[new_position].ship.owner == self.me and not self[new_position].is_claimed:
+                    logging.debug(f"I own the ship there and the position is not yet claimed")
+                    return direction
                 else:
                     logging.debug(f"returning greedy move")
                     return self.safe_greedy_move(source, target)
             else:
                 if self[new_position].ship.owner == self.me and not self[new_position].is_claimed:
+                    logging.debug(f"I own that ship and the position is NOT claimed")
                     return direction
                 elif self[source].ship.task == Task.EndgameHunt and not self[new_position].is_claimed:
+                    logging.debug(f"Ships task is EngameHunt and the new position is NOT claimed")
+                    return direction
+                elif self[new_position].ship.owner == self.me and not self[new_position].is_claimed:
+                    logging.debug(f"I own the ship there and the position is not yet claimed")
                     return direction
                 else:
+                    logging.debug(f"Making a safe greedy move")
                     return self.safe_greedy_move(source, target)
         else:
             logging.debug(f"new position is NOT occupied")
 
             if not self[new_position].is_claimed:
+                logging.debug(f"new position is NOT claimed")
                 return direction
             else:
+                logging.debug(f"new position is claimed however")
                 return self.safe_greedy_move(source, target)
 
     def get_neighbouring_structures(self, position, friendly=True, enemy=False):
@@ -317,7 +332,6 @@ class GameMap:
                 }
                 queue.append(pos)
 
-        logging.debug(queue)
         # Dijkstra
         #   Calculating the cheapest path to each respective node in the grid
         while len(queue):
@@ -333,7 +347,7 @@ class GameMap:
 
                     # Calculate the cost of traveling to that neighbour
                     if cheapest:
-                        if neighbour.is_occupied:
+                        if (neighbour.is_occupied and neighbour.ship.owner != self.me) or neighbour.is_claimed:
                             neighbour_weight = constants.INF
                         else:
                             neighbour_weight = neighbour.halite_amount
@@ -373,8 +387,9 @@ class GameMap:
         # Evaluate if any of the cardinal directions are safe
         for direction in Direction.get_all_cardinals():
             new_position = self.normalize(source.directional_offset(direction))
-            if not self[new_position].is_occupied and not self[new_position].is_claimed:
-                safe_moves.append(direction)
+            if not self[new_position].is_claimed:
+                if (self[new_position].is_occupied and self[new_position].ship.owner == self.me) or not self[new_position].is_occupied:
+                    safe_moves.append(direction)
 
         # The scenario where we are fucked
         if not safe_moves:
@@ -433,7 +448,6 @@ class GameMap:
         self.max_halite = 0  # Reset
         self.total_halite = 0  # Reset
 
-        logging.debug(f"Resetting max halite: {self.max_halite}")
         for y in range(self.height):
             for x in range(self.width):
                 self.max_halite = max(self.max_halite, self[Position(x, y)].halite_amount)
