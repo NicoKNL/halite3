@@ -93,6 +93,16 @@ class Position:
         positions.extend(self.get_surrounding_cardinals())
         return positions
 
+    def get_3x3(self):
+        positions = self.get_plus_cardinals()
+        positions.extend([
+            self + Position(-1, -1),
+            self + Position(-1, 1),
+            self + Position(1, -1),
+            self + Position(1, 1)
+        ])
+        return positions
+
     def __add__(self, other):
         return Position(self.x + other.x, self.y + other.y)
 

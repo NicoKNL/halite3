@@ -413,6 +413,21 @@ class GameMap:
             for x in range(self.width):
                 self[Position(x, y)].release_claim()
 
+    def clear_cheese(self):
+        for y in range(self.height):
+            for x in range(self.width):
+                position = Position(x, y)
+                cell = self[position]
+                if cell.has_structure and cell.structure.owner == self.me:
+                    logging.debug(f"Found structure of myself!")
+                    surroundings = position.get_3x3()
+                    logging.debug(f"surroundings: {surroundings}")
+                    for neighbour_pos in surroundings:
+                        neighbour = self[neighbour_pos]
+                        if neighbour.is_occupied and neighbour.ship.owner != self.me:
+                            logging.debug(f"found ship: {neighbour.ship} || {neighbour.ship.owner} || {self.me}")
+                            neighbour.mark_safe()
+
     @staticmethod
     def _generate(my_id):
         """

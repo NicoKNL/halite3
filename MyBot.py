@@ -158,6 +158,7 @@ def evaluate_other(ships):
     first_movers, gather_ships, deposit_ships, suicide_ships, hunting_ships = resolve_tasks(ships)
 
     for ship in first_movers:
+        logging.debug(f"# {ship.id} ---------------- first movers")
         target = weighted_cleanup(ship)
         direction = game_map.navigate(ship.position, target, offset=2)
         move = ship.move(direction)
@@ -167,6 +168,7 @@ def evaluate_other(ships):
     for ship in sorted(deposit_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=False):
+        logging.debug(f"# {ship.id} ---------------- deposit ")
         target = me.shipyard.position
         direction = game_map.navigate(ship.position, target, offset=0)
         move = ship.move(direction)
@@ -176,6 +178,8 @@ def evaluate_other(ships):
     for ship in sorted(suicide_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=False):
+        logging.debug(f"# {ship.id} ---------------- suicide ")
+
         target = me.shipyard.position
         direction = game_map.navigate(ship.position, target, offset=0, ignore_dropoff=True)
         move = ship.move(direction)
@@ -185,6 +189,8 @@ def evaluate_other(ships):
     for ship in sorted(hunting_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=True):
+        logging.debug(f"# {ship.id} ---------------- hunting ")
+
         target = hunt_close_enemy(ship)
         direction = game_map.navigate(ship.position, target, offset=0)
         move = ship.move(direction)
