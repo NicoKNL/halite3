@@ -7,13 +7,14 @@ from hlt.task import Task
 # This library contains constant values.
 from hlt import constants
 import time
+import os
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Direction, Position
 
 # This library allows you to generate random numbers.
 import random
-from math import ceil
+from math import ceil, sqrt
 
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 #   (print statements) are reserved for the engine-bot communication.
@@ -30,6 +31,42 @@ game.ready("DEV")
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
+
+
+def collect_data(file_name):
+    import numpy as np
+    global game_map
+    global me
+
+    halite = []
+    distance = []
+    penalized = []
+
+    for y in range(game_map.height):
+        halite_row = []
+        distance_row = []
+        penalized_row = []
+        for x in range(game_map.width):
+            pos = Position(x, y)
+            cell = game_map[pos]
+
+            # Halite amount
+            halite_row.append(cell.halite_amount)
+
+            # Distance
+            cell_dist = max(0.00000001, game_map.calculate_distance(me.shipyard.position, pos) / game_map.width)
+            distance_row.append(cell_dist)
+
+            # Halite penalized for distance
+            penalized_halite = cell.halite_amount * (1 / cell_dist)  #(1 - pow(cell_dist, 0.1))
+            penalized_row.append(penalized_halite)
+
+        # appending the rows to the main data arrays
+        halite.append(halite_row)
+        distance.append(distance_row)
+        penalized.append(penalized_row)
+
+    np.savez(f"{os.path.join(os.getcwd(), 'datasets')}{os.sep}{file_name}.npz", halite=halite, distance=distance, penalized=penalized)
 
 
 def hunt_close_enemy2(ships):
@@ -250,7 +287,8 @@ while True:
     # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
-
+    collect_data("distance_vs_halite")
+    time.sleep(3)
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     #   end of the turn.
     command_queue = []
