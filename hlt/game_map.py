@@ -187,7 +187,7 @@ class GameMap:
 
         if self[new_position].is_claimed: # and not direction == Direction.Still:
             logging.debug(f"    #{ship.id} is trying to claim: {new_position} but already claimed by: {self[new_position].claim}")
-            raise RuntimeError("Already claimed!")
+            # raise RuntimeError("Already claimed!")
         self[new_position].mark_claimed(ship)
 
     def naive_navigate(self, ship, destination):

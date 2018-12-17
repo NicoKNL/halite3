@@ -6,6 +6,7 @@ import hlt
 from hlt.task import Task
 # This library contains constant values.
 from hlt import constants
+import time
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Direction, Position
@@ -24,99 +25,75 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("Dijkstra fix")
+game.ready("DEV")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 
-def hunt_close_enemy(ship):
+def hunt_close_enemy2(ships):
     global game_map
+    matches = dict()
 
-    current_offset = 1
-    distance_limit = 5
-    found = False
-    ship_seen = False
     # Search with an expanding ring
-    while not found and current_offset <= game_map.height:  # possible max search range
-        offsets = list(range(-current_offset, current_offset + 1))
-        offsets = [(x, y) for x in offsets for y in offsets]
+    targets = []
 
-        targets = []
-        for offset in offsets:
-            cell_pos = me.shipyard.position + Position(*offset)
-            cell = game_map[cell_pos]
-            if cell.is_occupied and cell.ship.owner != me.id:
-                targets.append(cell_pos)
+    for y in range(game_map.height):
+        for x in range(game_map.width):
 
-            if ship.position == cell_pos:
-                ship_seen = True
+            pos = Position(x, y)
+            cell = game_map[pos]
+            if cell.is_occupied and cell.ship.owner != me.id and cell.ship.halite_amount > 200:
+                targets.append(cell)
 
-        if targets:
-            best_target = (None, constants.INF)  # For now best => closest
-            for target in targets:
-                distance = game_map.calculate_distance(ship.position, target)
-                if distance < best_target[1] and distance < distance_limit:
-                    best_target = (target, distance)
-                    # logging.debug(f"{ship.id} best_target found: {best_target}")
+    # Match all ships with all targets
+    for ship in ships:
+        best_target = (None, constants.INF)  # For now best => closest
+        for cell in targets:
+            distance = game_map.calculate_distance(ship.position, cell.position)
+            if distance < best_target[1]:
+                best_target = (cell, distance)
 
-            if best_target[0] is not None:
-                # logging.debug(f"{ship.id} | Found!")
-                found = True
+        if best_target[0] is not None:
+            matches[ship] = best_target[0].position
+            targets.pop(targets.index(best_target[0]))
+        else:
+            matches[ship] = None
 
-        current_offset += 1
-        if ship_seen:
-            distance_limit *= 1.5
-
-    # logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
-
-    return best_target[0]
+    return matches
 
 
-def weighted_cleanup(ship):
+def weighted_cleanup2(ships):
     global game_map
-    # TODO: Don't do this per ship, but once per game turn and figure out positions for each ship that way
-    minimum = min(game_map.max_halite, 30)
-    current_offset = 1
-    running_sum = 0
-    distance_limit = 5
-    found = False
-    ship_seen = False
-    # Search with an expanding ring
-    while not found and current_offset <= game_map.height:  # possible max search range
-        offsets = list(range(-current_offset, current_offset + 1))
-        offsets = [(x, y) for x in offsets for y in offsets]
+    matches = dict()
+    average_halite_on_map = game_map.total_halite / (game_map.width * game_map.height)
+    minimum = min(0.5 * average_halite_on_map, 30)
 
-        targets = []
-        for offset in offsets:
-            cell_pos = game_map.normalize(me.shipyard.position + Position(*offset))
-            cell = game_map[cell_pos]
+    # Search with an expanding ring
+    targets = []
+    for y in range(game_map.height):
+        for x in range(game_map.width):
+            pos = Position(x, y)
+            cell = game_map[pos]
             if cell.halite_amount >= minimum and not cell.is_occupied:
-                targets.append(cell_pos)
+                targets.append(cell)
 
-            if ship.position == cell_pos:
-                ship_seen = True
+    # Match all ships with all targets
+    for ship in ships:
+        best_target = (None, constants.INF)  # For now best => closest
+        for cell in targets:
+            distance = game_map.calculate_distance(ship.position, cell.position)
+            if distance < best_target[1]:
+                best_target = (cell, distance)
 
-        if targets:
-            best_target = (None, constants.INF)  # For now best => closest
-            for target in targets:
-                distance = game_map.calculate_distance(ship.position, target)
-                if distance < best_target[1] and distance < distance_limit:
-                    best_target = (target, distance)
-                    # logging.debug(f"{ship.id} best_target found: {best_target}")
+        if best_target[0] is not None:
+            matches[ship] = best_target[0].position
+            targets.pop(targets.index(best_target[0]))
+        else:
+            matches[ship] = None
 
-            if best_target[0] is not None:
-                # logging.debug(f"{ship.id} | Found!")
-                found = True
-
-        current_offset += 1
-        if ship_seen:
-            distance_limit *= 1.5
-
-    # logging.debug(f"{ship.id} ?????????: {best_target} | {current_offset} | {targets} | {found}")
-
-    return best_target[0]
+    return matches
 
 
 def evaluate_can_move(ships):
@@ -139,9 +116,11 @@ def evaluate_should_move(ships):
     global game_map
     global command_queue
 
+    average_halite_on_map = game_map.total_halite / (game_map.width * game_map.height)
+
     ignored_ships = []
     for ship in ships:
-        if not game_map[ship].should_move(30):
+        if not game_map[ship].should_move(min(average_halite_on_map * 0.5, 30)):
             move = ship.stay_still()
             game_map.register_move(ship, Direction.Still)
             command_queue.append(move)
@@ -159,8 +138,11 @@ def evaluate_other(ships):
 
     for ship in first_movers:
         logging.debug(f"# {ship.id} ---------------- first movers")
-        target = weighted_cleanup(ship)
-        direction = game_map.navigate(ship.position, target, offset=2)
+        direction = game_map.safe_greedy_move(ship.position, ship.position + random.choice([Position(0, 5),
+                                                                                         Position(0, -5),
+                                                                                         Position(5, 0),
+                                                                                         Position(-5, 0)]))
+        logging.debug(f"DIRECTION FIRST MOVER: {direction}")
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
@@ -186,23 +168,38 @@ def evaluate_other(ships):
         game_map.register_move(ship, direction)
         command_queue.append(move)
 
+    attack_targets = dict()
+    if hunting_ships:
+        attack_targets = hunt_close_enemy2(hunting_ships)
+
     for ship in sorted(hunting_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=True):
         logging.debug(f"# {ship.id} ---------------- hunting ")
 
-        target = hunt_close_enemy(ship)
-        direction = game_map.navigate(ship.position, target, offset=0)
+        target = attack_targets[ship]
+
+        if target is None:
+            direction = Direction.Still
+        else:
+            direction = game_map.navigate(ship.position, target, offset=0)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
 
+    targets = []
+    if gather_ships:
+        targets = weighted_cleanup2(gather_ships)
     for ship in sorted(gather_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=True):
         # target = ship.position + Position(5, 5)  # Target to the north
-        target = weighted_cleanup(ship)
-        direction = game_map.navigate(ship.position, target, offset=1)
+        target = targets[ship]
+        logging.debug(f"TARGET: {target}")
+        if target is None:
+            direction = Direction.Still
+        else:
+            direction = game_map.navigate(ship.position, target, offset=1)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
