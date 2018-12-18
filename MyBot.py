@@ -34,6 +34,10 @@ game.ready("DEV")
 logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 
+def save_data(file_name, **kwargs):
+    np.savez(f"{os.path.join(os.getcwd(), 'datasets')}{os.sep}{file_name}.npz", **kwargs)
+
+
 def collect_data(file_name):
     global game_map
     global me
@@ -159,7 +163,7 @@ def evaluate_should_move(ships):
     global game_map
     global command_queue
 
-    minimum = 40
+    minimum = 50
     average_halite_on_map = game_map.total_halite / (game_map.width * game_map.height)
     while average_halite_on_map <= minimum and minimum != 0:
         minimum /= 2
@@ -182,9 +186,18 @@ def evaluate_other(ships):
 
     first_movers, gather_ships, deposit_ships, suicide_ships, hunting_ships = resolve_tasks(ships)
 
+    first_mover_targets = []
+    if first_movers:
+        first_mover_targets = weighted_cleanup2(first_movers)
     for ship in first_movers:
       # logging.debug(f"# {ship.id} ---------------- first movers")
-        direction = game_map.safe_adjacent_move(ship.position)
+        target = first_mover_targets[ship]
+
+        if target is None:
+            direction = Direction.Still
+        else:
+            direction = game_map.navigate(ship.position, target, offset=0, cheapest=False)
+        # direction = game_map.safe_adjacent_move(ship.position)
 
       # logging.debug(f"DIRECTION FIRST MOVER: {direction}")
         move = ship.move(direction)
@@ -243,7 +256,7 @@ def evaluate_other(ships):
         if target is None:
             direction = Direction.Still
         else:
-            direction = game_map.navigate(ship.position, target, offset=1, cheapest=False)
+            direction = game_map.navigate(ship.position, target, offset=0, cheapest=False)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
