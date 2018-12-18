@@ -8,6 +8,7 @@ from hlt.task import Task
 from hlt import constants
 import time
 import os
+import numpy as np
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Direction, Position
@@ -34,7 +35,6 @@ logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 
 def collect_data(file_name):
-    import numpy as np
     global game_map
     global me
 
@@ -105,8 +105,6 @@ def weighted_cleanup2(ships):
     global game_map
     global me
     matches = dict()
-    average_halite_on_map = game_map.total_halite / (game_map.width * game_map.height)
-    minimum = min(0.5 * average_halite_on_map, 30)
 
     targets = []
     for y in range(game_map.height):
@@ -133,6 +131,8 @@ def weighted_cleanup2(ships):
         if best_target[0] is not None:
             matches[ship] = best_target[0].position
             targets.pop(targets.index(target))
+            if best_target[1] >= game_map.width / 2:
+                logging.debug(f"Traveling at least half the map: {best_target[1]}")
         else:
             matches[ship] = None
 
@@ -159,11 +159,14 @@ def evaluate_should_move(ships):
     global game_map
     global command_queue
 
+    minimum = 40
     average_halite_on_map = game_map.total_halite / (game_map.width * game_map.height)
+    while average_halite_on_map <= minimum and minimum != 0:
+        minimum /= 2
 
     ignored_ships = []
     for ship in ships:
-        if not ship.task in [Task.EndgameHunt, Task.Deposit] and not game_map[ship].should_move(min(average_halite_on_map * 0.5, 30)):
+        if not ship.task in [Task.EndgameHunt, Task.Deposit] and not game_map[ship].should_move(minimum):
             move = ship.stay_still()
             game_map.register_move(ship, Direction.Still)
             command_queue.append(move)
@@ -181,10 +184,8 @@ def evaluate_other(ships):
 
     for ship in first_movers:
       # logging.debug(f"# {ship.id} ---------------- first movers")
-        direction = game_map.safe_greedy_move(ship.position, ship.position + random.choice([Position(0, 5),
-                                                                                         Position(0, -5),
-                                                                                         Position(5, 0),
-                                                                                         Position(-5, 0)]))
+        direction = game_map.safe_adjacent_move(ship.position)
+
       # logging.debug(f"DIRECTION FIRST MOVER: {direction}")
         move = ship.move(direction)
         game_map.register_move(ship, direction)
@@ -195,7 +196,7 @@ def evaluate_other(ships):
                        reverse=False):
       # logging.debug(f"# {ship.id} ---------------- deposit ")
         target = me.shipyard.position
-        direction = game_map.navigate(ship.position, target, offset=0)
+        direction = game_map.navigate(ship.position, target, offset=1)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
@@ -206,7 +207,7 @@ def evaluate_other(ships):
       # logging.debug(f"# {ship.id} ---------------- suicide ")
 
         target = me.shipyard.position
-        direction = game_map.navigate(ship.position, target, offset=0, ignore_dropoff=True)
+        direction = game_map.navigate(ship.position, target, offset=1, ignore_dropoff=True)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
@@ -225,7 +226,7 @@ def evaluate_other(ships):
         if target is None:
             direction = Direction.Still
         else:
-            direction = game_map.navigate(ship.position, target, offset=0)
+            direction = game_map.navigate(ship.position, target, offset=1)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
@@ -307,7 +308,11 @@ while True:
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if game_map.total_halite / max(len(me.get_ships()), 1) > 6000 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and not game_map[me.shipyard].is_claimed and game.turn_number <= constants.MAX_TURNS - 150:
+    claimed_by_four = sum([game_map[p].is_claimed for p in me.shipyard.position.get_surrounding_cardinals()]) == 4
+    if claimed_by_four:
+        logging.debug(f"Claimed by four!")
+
+    if not claimed_by_four and game_map.total_halite / max(len(me.get_ships()), 1) > 6000 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and not game_map[me.shipyard].is_claimed and game.turn_number <= constants.MAX_TURNS - 150:
         command_queue.append(me.shipyard.spawn())
 
     # Send your moves back to the game environment, ending this turn.

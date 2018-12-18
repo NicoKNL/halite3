@@ -398,7 +398,7 @@ class GameMap:
 
         # Evaluate if any of the cardinal directions are safe
         for direction in Direction.get_all_cardinals():
-            new_position = self.normalize(source.directional_offset(direction))
+            new_position = source.directional_offset(direction)
             if not self[new_position].is_occupied and not self[new_position].is_claimed:
                 safe_moves.append(direction)
 

@@ -406,6 +406,27 @@ class GameMap:
         # Returns direction
         return closest_to_target[0]
 
+    def safe_adjacent_move(self, source, highest_value=True):
+        safe_moves = []
+
+        for direction in Direction.get_all_cardinals():
+            position = source.directional_offset(direction)
+            if not self[position].is_claimed:
+                safe_moves.append(direction)
+
+        if not safe_moves:
+            return Direction.Still
+
+        best_value = (None, -1)
+        for direction in safe_moves:
+            position = source.directional_offset(direction)
+            value = self[position].halite_amount
+            if value > best_value[1]:
+                best_value = (direction, value)
+
+        # Returns direction
+        return best_value[0]
+
     def reset_claims(self):
         for y in range(self.height):
             for x in range(self.width):
