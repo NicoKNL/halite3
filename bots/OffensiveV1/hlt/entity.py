@@ -63,9 +63,25 @@ class Ship(Entity):
         super().__init__(owner, id, position)
         self.halite_amount = halite_amount
         self.task = Task.Gather
+        self.focus = None
+        self.target = None
+
+    def set_focus(self, focus):
+        self.focus = focus
+
+    def set_target(self, target):
+        self.target = target
 
     def set_task(self, task):
         self.task = task
+
+    @property
+    def has_focus(self):
+        return self.focus is not None
+
+    @property
+    def has_target(self):
+        return self.target is not None
 
     @property
     def is_full(self):

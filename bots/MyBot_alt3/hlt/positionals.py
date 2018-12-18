@@ -1,6 +1,5 @@
 from . import commands
-from . import constants
-import logging
+
 
 class Direction:
     """
@@ -63,16 +62,9 @@ class Direction:
 
 
 class Position:
-    def __init__(self, x, y, normalize=True):
+    def __init__(self, x, y):
         self.x = x
         self.y = y
-
-        if normalize:
-            self.normalize()
-
-    def normalize(self):
-        self.x = self.x % constants.WIDTH
-        self.y = self.y % constants.HEIGHT
 
     def directional_offset(self, direction):
         """
@@ -88,28 +80,6 @@ class Position:
         """
         return [self.directional_offset(current_direction) for current_direction in Direction.get_all_cardinals()]
 
-    def get_plus_cardinals(self):
-        positions = [self]
-        positions.extend(self.get_surrounding_cardinals())
-        return positions
-
-    def get_3x3(self):
-        positions = self.get_plus_cardinals()
-        positions.extend([
-            self + Position(-1, -1),
-            self + Position(-1, 1),
-            self + Position(1, -1),
-            self + Position(1, 1)
-        ])
-        return positions
-
-    def get_offset_ring(self, offset=1):
-        offsets = list(range(-offset, offset + 1))
-        ring = [(x, y) for x in offsets for y in offsets if (abs(x) == offset or abs(y) == offset)]
-        position_ring = [self + Position(*offset) for offset in ring]
-        logging.debug(f"RING RING: {position_ring}")
-        return position_ring
-
     def __add__(self, other):
         return Position(self.x + other.x, self.y + other.y)
 
@@ -119,13 +89,11 @@ class Position:
     def __iadd__(self, other):
         self.x += other.x
         self.y += other.y
-        self.normalize()
         return self
 
     def __isub__(self, other):
         self.x -= other.x
         self.y -= other.y
-        self.normalize()
         return self
 
     def __abs__(self):

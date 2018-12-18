@@ -3,8 +3,9 @@ import abc
 from . import commands, constants
 from .positionals import Direction, Position
 from .common import read_input
-from .task import Task
 
+from math import floor
+import logging
 
 class Entity(abc.ABC):
     """
@@ -30,12 +31,6 @@ class Entity(abc.ABC):
                                       self.id,
                                       self.position)
 
-    def __hash__(self):
-        return hash((self.owner, self.id))
-
-    def __eq__(self, other):
-        return self.owner == other.owner and self.id == other.id
-
 
 class Dropoff(Entity):
     """
@@ -57,15 +52,9 @@ class Ship(Entity):
     """
     Ship class to house ship entities
     """
-    __ships = {}
-
     def __init__(self, owner, id, position, halite_amount):
         super().__init__(owner, id, position)
         self.halite_amount = halite_amount
-        self.task = Task.Gather
-
-    def set_task(self, task):
-        self.task = task
 
     @property
     def is_full(self):
@@ -75,6 +64,35 @@ class Ship(Entity):
     def make_dropoff(self):
         """Return a move to transform this ship into a dropoff."""
         return "{} {}".format(commands.CONSTRUCT, self.id)
+
+    def can_move(self, cell):
+        cost = floor(0.10 * cell.halite_amount)
+        logging.debug(f"can move SHIP {self.id}? cell: {cell.halite_amount} | cost: {cost} | have: {self.halite_amount}")
+        if cost > self.halite_amount:
+            return False
+        return True
+
+    def should_move(self, cell):
+        # staying_profit = ceil(0.25 * cell.halite_amount)
+        min = 30
+        # if staying_profit >= floor(0.5 * 0.25 * constants.MAX_HALITE):
+        if cell.halite_amount >= min and self.halite_amount < constants.MAX_HALITE:
+            return False
+        return True
+
+    def in_danger(self, game_map):
+        for pos in self.position.get_surrounding_cardinals():
+            if game_map[pos.x][pos.y].get_entity().owner != self.owner:
+                return True
+        return False
+
+    def should_turn_in(self, game_map, current_turn):
+        turns_left = constants.MAX_TURNS - current_turn
+        turns_needed = game_map.calculate_distance(self.position, game_map.me.shipyard.position)
+
+        if turns_left <= turns_needed + 6:
+            return True
+        return False
 
     def move(self, direction):
         """
@@ -96,25 +114,11 @@ class Ship(Entity):
     def _generate(player_id):
         """
         Creates an instance of a ship for a given player given the engine's input.
-        If an instance with the same ship.id has previously been generated, that instance will be returned.
         :param player_id: The id of the player who owns this ship
         :return: The ship id and ship object
         """
-        # Read game engine input
         ship_id, x_position, y_position, halite = map(int, read_input().split())
-
-        # Check storage to see if ship already exists
-        # If the ship exists, update its position and halite
-        if ship_id in Ship.__ships.keys():    
-            old_ship = Ship.__ships[ship_id]
-            old_ship.position = Position(x_position, y_position)
-            old_ship.halite_amount = halite
-            return ship_id, old_ship
-        else:
-            # Otherwise, create and return a new instance
-            new_ship = Ship(player_id, ship_id, Position(x_position, y_position), halite)
-            Ship.__ships[ship_id] = new_ship
-            return ship_id, new_ship
+        return ship_id, Ship(player_id, ship_id, Position(x_position, y_position), halite)
 
     def __repr__(self):
         return "{}(id={}, {}, cargo={} halite)".format(self.__class__.__name__,

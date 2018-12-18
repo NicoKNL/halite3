@@ -5,7 +5,6 @@ import sys
 from .common import read_input
 from . import constants
 from .game_map import GameMap, Player
-from .positionals import Direction
 
 
 class Game:
@@ -20,10 +19,10 @@ class Game:
         self.turn_number = 0
 
         # Grab constants JSON
-        raw_constants = read_input()
+        raw_constants = self.log_read_input()
         constants.load_constants(json.loads(raw_constants))
 
-        num_players, self.my_id = map(int, read_input().split())
+        num_players, self.my_id = map(int, self.log_read_input().split())
 
         logging.basicConfig(
             filename="bot-{}.log".format(self.my_id),
@@ -35,9 +34,7 @@ class Game:
         for player in range(num_players):
             self.players[player] = Player._generate()
         self.me = self.players[self.my_id]
-        self.game_map = GameMap._generate(self.my_id)
-
-        constants.set_dimensions(self.game_map.width, self.game_map.height)
+        self.game_map = GameMap._generate()
 
     def ready(self, name):
         """
@@ -46,16 +43,21 @@ class Game:
         """
         send_commands([name])
 
+    def log_read_input(self):
+        input = read_input()
+        logging.info(input)
+        return input
+
     def update_frame(self):
         """
         Updates the game object's state.
         :returns: nothing.
         """
-        self.turn_number = int(read_input())
+        self.turn_number = int(self.log_read_input())
         logging.info("=============== TURN {:03} ================".format(self.turn_number))
 
         for _ in range(len(self.players)):
-            player, num_ships, num_dropoffs, halite = map(int, read_input().split())
+            player, num_ships, num_dropoffs, halite = map(int, self.log_read_input().split())
             self.players[player]._update(num_ships, num_dropoffs, halite)
 
         self.game_map._update()
@@ -64,17 +66,10 @@ class Game:
         for player in self.players.values():
             for ship in player.get_ships():
                 self.game_map[ship.position].mark_unsafe(ship)
-                if ship.owner != self.my_id:
-                    for neighbour_pos in ship.position.get_surrounding_cardinals():
-                        if not self.game_map[neighbour_pos].is_occupied:
-                            self.game_map[neighbour_pos].mark_unsafe(ship)
 
             self.game_map[player.shipyard.position].structure = player.shipyard
             for dropoff in player.get_dropoffs():
                 self.game_map[dropoff.position].structure = dropoff
-
-        # Remove enemy ships around my base
-        self.game_map.clear_cheese()
 
     @staticmethod
     def end_turn(commands):

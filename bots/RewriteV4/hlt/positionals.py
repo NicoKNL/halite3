@@ -103,13 +103,6 @@ class Position:
         ])
         return positions
 
-    def get_offset_ring(self, offset=1):
-        offsets = list(range(-offset, offset + 1))
-        ring = [(x, y) for x in offsets for y in offsets if (abs(x) == offset or abs(y) == offset)]
-        position_ring = [self + Position(*offset) for offset in ring]
-        logging.debug(f"RING RING: {position_ring}")
-        return position_ring
-
     def __add__(self, other):
         return Position(self.x + other.x, self.y + other.y)
 

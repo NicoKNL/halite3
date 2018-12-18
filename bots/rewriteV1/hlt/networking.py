@@ -66,15 +66,11 @@ class Game:
                 self.game_map[ship.position].mark_unsafe(ship)
                 if ship.owner != self.my_id:
                     for neighbour_pos in ship.position.get_surrounding_cardinals():
-                        if not self.game_map[neighbour_pos].is_occupied:
-                            self.game_map[neighbour_pos].mark_unsafe(ship)
+                        self.game_map[neighbour_pos].mark_unsafe(ship)
 
             self.game_map[player.shipyard.position].structure = player.shipyard
             for dropoff in player.get_dropoffs():
                 self.game_map[dropoff.position].structure = dropoff
-
-        # Remove enemy ships around my base
-        self.game_map.clear_cheese()
 
     @staticmethod
     def end_turn(commands):

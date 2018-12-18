@@ -26,7 +26,7 @@ game = hlt.Game()
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
 # As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("DEV")
+game.ready("RewriteV6")
 
 # Now that your bot is initialized, save a message to yourself in the log file with some important information.
 #   Here, you log here your id, which you can always fetch from the game object by using my_id.
@@ -121,6 +121,7 @@ def weighted_cleanup2(ships):
                 )
 
     targets = sorted(targets, key=lambda t: t[1], reverse=True)[0: len(ships) * 2]
+    logging.debug(f"targets: {targets}")
     # Match all ships with all targets
     for ship in ships:
         best_target = (None, constants.INF)  # For now best => closest
@@ -180,12 +181,12 @@ def evaluate_other(ships):
     first_movers, gather_ships, deposit_ships, suicide_ships, hunting_ships = resolve_tasks(ships)
 
     for ship in first_movers:
-      # logging.debug(f"# {ship.id} ---------------- first movers")
+        logging.debug(f"# {ship.id} ---------------- first movers")
         direction = game_map.safe_greedy_move(ship.position, ship.position + random.choice([Position(0, 5),
                                                                                          Position(0, -5),
                                                                                          Position(5, 0),
                                                                                          Position(-5, 0)]))
-      # logging.debug(f"DIRECTION FIRST MOVER: {direction}")
+        logging.debug(f"DIRECTION FIRST MOVER: {direction}")
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
@@ -193,7 +194,7 @@ def evaluate_other(ships):
     for ship in sorted(deposit_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=False):
-      # logging.debug(f"# {ship.id} ---------------- deposit ")
+        logging.debug(f"# {ship.id} ---------------- deposit ")
         target = me.shipyard.position
         direction = game_map.navigate(ship.position, target, offset=0)
         move = ship.move(direction)
@@ -203,7 +204,7 @@ def evaluate_other(ships):
     for ship in sorted(suicide_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=False):
-      # logging.debug(f"# {ship.id} ---------------- suicide ")
+        logging.debug(f"# {ship.id} ---------------- suicide ")
 
         target = me.shipyard.position
         direction = game_map.navigate(ship.position, target, offset=0, ignore_dropoff=True)
@@ -218,7 +219,7 @@ def evaluate_other(ships):
     for ship in sorted(hunting_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=True):
-      # logging.debug(f"# {ship.id} ---------------- hunting ")
+        logging.debug(f"# {ship.id} ---------------- hunting ")
 
         target = attack_targets[ship]
 
@@ -238,7 +239,7 @@ def evaluate_other(ships):
                        reverse=True):
         # target = ship.position + Position(5, 5)  # Target to the north
         target = targets[ship]
-        # logging.debug(f"TARGET: {target}")
+        logging.debug(f"TARGET: {target}")
         if target is None:
             direction = Direction.Still
         else:
@@ -289,7 +290,6 @@ def resolve_tasks(ships):
 while True:
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
     #   running update_frame().
-    start = time.time()
     game.update_frame()
     # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
@@ -313,7 +313,6 @@ while True:
     # Send your moves back to the game environment, ending this turn.
     game_map.reset_claims()
     game.end_turn(command_queue)
-    logging.warning(f"{time.time() - start} seconds")
 
 
 
