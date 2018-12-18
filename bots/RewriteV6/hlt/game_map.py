@@ -186,7 +186,8 @@ class GameMap:
             return
 
         if self[new_position].is_claimed: # and not direction == Direction.Still:
-            logging.debug(f"    #{ship.id} is trying to claim: {new_position} but already claimed by: {self[new_position].claim}")
+            pass
+          # logging.debug(f"    #{ship.id} is trying to claim: {new_position} but already claimed by: {self[new_position].claim}")
             # raise RuntimeError("Already claimed!")
         self[new_position].mark_claimed(ship)
 
@@ -211,24 +212,24 @@ class GameMap:
     def navigate(self, source, target, offset=1, ignore_dropoff=False, cheapest=True):
         direction = self.dijkstra_a_to_b(source, target, offset=offset, cheapest=cheapest)
         new_position = source.directional_offset(direction)
-        logging.debug(f"#{self[source].ship.id} || source: {source} and target: {target} and new position: {new_position}")
+      # logging.debug(f"#{self[source].ship.id} || source: {source} and target: {target} and new position: {new_position}")
 
         structures = self.get_neighbouring_structures(new_position, friendly=True, enemy=ignore_dropoff)
         structure_positions = [s.position for s in structures]
 
         # Allows for the endgame crashing on the dropoff, and ignore enemies when they are on my dropoff
         if new_position in structure_positions:
-            logging.debug(f"new position in structure positions")
-            logging.debug(self[source].ship.task)
-            logging.debug(ignore_dropoff)
+          # logging.debug(f"new position in structure positions")
+          # logging.debug(self[source].ship.task)
+          # logging.debug(ignore_dropoff)
             if ignore_dropoff or (self[new_position].is_occupied and self[new_position].ship.owner != self.me):
-                logging.debug(f"ignore dropoff: {ignore_dropoff} or new position is occupied and the ship is NOT owned by me")
+              # logging.debug(f"ignore dropoff: {ignore_dropoff} or new position is occupied and the ship is NOT owned by me")
                 return direction
             elif not self[new_position].is_claimed:
-                logging.debug(f"Position just isn't claimed")
+              # logging.debug(f"Position just isn't claimed")
                 return direction
             else:
-                logging.debug(f"I need to make a greedy move")
+              # logging.debug(f"I need to make a greedy move")
                 return self.safe_greedy_move(source, target)
 
         # In order to ignore the cheese strategy where they wait in front of your dropoff
@@ -237,40 +238,40 @@ class GameMap:
             structure_cardinals.extend(s.get_surrounding_cardinals())
 
         if self[new_position].is_occupied:
-            logging.debug(f"new position is occupied")
+          # logging.debug(f"new position is occupied")
 
             if new_position in structure_cardinals:
-                logging.debug(f"new position in structure cardinals")
+              # logging.debug(f"new position in structure cardinals")
                 if self[new_position].ship.owner != self.me and not self[new_position].is_claimed:
-                    logging.debug(f"returning same direction")
+                  # logging.debug(f"returning same direction")
                     return direction
                 elif self[new_position].ship.owner == self.me and not self[new_position].is_claimed:
-                    logging.debug(f"I own the ship there and the position is not yet claimed")
+                  # logging.debug(f"I own the ship there and the position is not yet claimed")
                     return direction
                 else:
-                    logging.debug(f"returning greedy move")
+                  # logging.debug(f"returning greedy move")
                     return self.safe_greedy_move(source, target)
             else:
                 if self[new_position].ship.owner == self.me and not self[new_position].is_claimed:
-                    logging.debug(f"I own that ship and the position is NOT claimed")
+                  # logging.debug(f"I own that ship and the position is NOT claimed")
                     return direction
                 elif self[source].ship.task == Task.EndgameHunt and not self[new_position].is_claimed:
-                    logging.debug(f"Ships task is EngameHunt and the new position is NOT claimed")
+                  # logging.debug(f"Ships task is EngameHunt and the new position is NOT claimed")
                     return direction
                 elif self[new_position].ship.owner == self.me and not self[new_position].is_claimed:
-                    logging.debug(f"I own the ship there and the position is not yet claimed")
+                  # logging.debug(f"I own the ship there and the position is not yet claimed")
                     return direction
                 else:
-                    logging.debug(f"Making a safe greedy move")
+                  # logging.debug(f"Making a safe greedy move")
                     return self.safe_greedy_move(source, target)
         else:
-            logging.debug(f"new position is NOT occupied")
+          # logging.debug(f"new position is NOT occupied")
 
             if not self[new_position].is_claimed:
-                logging.debug(f"new position is NOT claimed")
+              # logging.debug(f"new position is NOT claimed")
                 return direction
             else:
-                logging.debug(f"new position is claimed however")
+              # logging.debug(f"new position is claimed however")
                 return self.safe_greedy_move(source, target)
 
     def get_neighbouring_structures(self, position, friendly=True, enemy=False):
@@ -352,7 +353,7 @@ class GameMap:
                         if cheapest:
                             neighbour_weight = neighbour.halite_amount
                         else:
-                            neighbour_weight = constants.MAX_HALITE - neighbour.halite_amount
+                            neighbour_weight = max(1, constants.MAX_HALITE - neighbour.halite_amount)
                     # neighbour_weight = neighbour.halite_amount if not game_map[pos].is_occupied else INF
                     # logging.debug(f"Neighbour: {pos} | {neighbour_weight} | occupied: {game_map[pos].is_occupied} | ship id {game_map[pos].ship}")
 
@@ -390,7 +391,7 @@ class GameMap:
 
         # The scenario where we are fucked
         if not safe_moves:
-            logging.debug(f"NO SAFE MOVES: {source}")
+          # logging.debug(f"NO SAFE MOVES: {source}")
             self[source].release_claim()
             return Direction.Still
 
@@ -416,13 +417,13 @@ class GameMap:
                 position = Position(x, y)
                 cell = self[position]
                 if cell.has_structure and cell.structure.owner == self.me:
-                    logging.debug(f"Found structure of myself!")
+                  # logging.debug(f"Found structure of myself!")
                     surroundings = position.get_3x3()
-                    logging.debug(f"surroundings: {surroundings}")
+                  # logging.debug(f"surroundings: {surroundings}")
                     for neighbour_pos in surroundings:
                         neighbour = self[neighbour_pos]
                         if neighbour.is_occupied and neighbour.ship.owner != self.me:
-                            logging.debug(f"found ship: {neighbour.ship} || {neighbour.ship.owner} || {self.me}")
+                          # logging.debug(f"found ship: {neighbour.ship} || {neighbour.ship.owner} || {self.me}")
                             neighbour.mark_safe()
 
     @staticmethod
