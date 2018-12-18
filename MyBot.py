@@ -73,6 +73,17 @@ def collect_data(file_name):
     np.savez(f"{os.path.join(os.getcwd(), 'datasets')}{os.sep}{file_name}.npz", halite=halite, distance=distance, penalized=penalized)
 
 
+def swarm_closest_enemy_dropoff(ships):
+    matches = dict()
+
+    for ship in ships:
+        closest_enemy_dropoff = sorted(game_map.enemy_dropoffs, key=lambda d, ship=ship, game_map=game_map: game_map.calculate_distance(d, ship.position))[0]
+        ring_positions = closest_enemy_dropoff.get_offset_ring(offset=2)
+        matches[ship] = random.choice(ring_positions)
+
+    return matches
+
+
 def hunt_close_enemy2(ships):
     global game_map
     matches = dict()
@@ -227,11 +238,11 @@ def evaluate_other(ships):
 
     attack_targets = dict()
     if hunting_ships:
-        attack_targets = hunt_close_enemy2(hunting_ships)
+        attack_targets = swarm_closest_enemy_dropoff(hunting_ships)
 
     for ship in sorted(hunting_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
-                       reverse=True):
+                       reverse=False):
       # logging.debug(f"# {ship.id} ---------------- hunting ")
 
         target = attack_targets[ship]
@@ -239,7 +250,7 @@ def evaluate_other(ships):
         if target is None:
             direction = Direction.Still
         else:
-            direction = game_map.navigate(ship.position, target, offset=1)
+            direction = game_map.navigate(ship.position, target, offset=1, ignore_enemies=True)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
@@ -256,10 +267,30 @@ def evaluate_other(ships):
         if target is None:
             direction = Direction.Still
         else:
-            direction = game_map.navigate(ship.position, target, offset=0, cheapest=False)
+            direction = game_map.navigate(ship.position, target, offset=1, cheapest=False)
         move = ship.move(direction)
         game_map.register_move(ship, direction)
         command_queue.append(move)
+
+
+def is_in_endgame(ship, cutoff):
+    if ship.task == Task.EndgameHunt:
+        return True
+
+    turns_remaining = constants.MAX_TURNS - game.turn_number
+    homing_dist = game_map.calculate_distance(me.shipyard.position, ship.position)
+    estimated_homing_time = homing_dist + 6 + ceil(len(me.get_ships()) / 9)
+
+    closest_enemy_dropoff = sorted(game_map.enemy_dropoffs, key=lambda d, ship=ship, game_map=game_map: game_map.calculate_distance(d, ship.position))[0]
+    attack_dist = game_map.calculate_distance(closest_enemy_dropoff, ship.position)
+    estimated_attacking_time = attack_dist + 4 + ceil(len(me.get_ships()) / 9)
+
+    if estimated_attacking_time >= turns_remaining and ship.halite_amount <= cutoff:
+        return True
+    elif estimated_homing_time >= turns_remaining:
+        return True
+    else:
+        return False
 
 
 def resolve_tasks(ships):
@@ -272,7 +303,7 @@ def resolve_tasks(ships):
 
     turns_remaining = constants.MAX_TURNS - game.turn_number
     for ship in ships:
-        if game_map.calculate_distance(me.shipyard.position, ship.position) + 6 + ceil(len(me.get_ships()) / 10) >= turns_remaining:
+        if is_in_endgame(ship, 200):
             if ship.task == Task.EndgameHunt:
                 hunting_ships.append(ship)
             elif ship.task == Task.Suicide:
@@ -309,7 +340,9 @@ while True:
     me = game.me
     game_map = game.game_map
 
-    collect_data(f"frames/{game.turn_number:03}")
+    """ COLLECTING DATA """
+    # collect_data(f"frames/{game.turn_number:03}")
+
     # collect_data("distance_vs_halite")
     # time.sleep(3)
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
@@ -327,7 +360,7 @@ while True:
     if claimed_by_four:
         logging.debug(f"Claimed by four!")
 
-    if not claimed_by_four and game_map.total_halite / max(len(me.get_ships()), 1) > 6000 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and not game_map[me.shipyard].is_claimed and game.turn_number <= ceil(0.66 * constants.MAX_TURNS):
+    if not claimed_by_four and game_map.total_halite / max(len(me.get_ships()), 1) > 4000 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and not game_map[me.shipyard].is_claimed and game.turn_number <= ceil(0.66 * constants.MAX_TURNS):
         command_queue.append(me.shipyard.spawn())
 
     # Send your moves back to the game environment, ending this turn.

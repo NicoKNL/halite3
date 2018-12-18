@@ -105,6 +105,7 @@ class GameMap:
         self.me = my_id
         self.max_halite = 0
         self.total_halite = 0
+        self.enemy_dropoffs = []
 
     def __getitem__(self, location):
         """
@@ -209,8 +210,8 @@ class GameMap:
 
         return Direction.Still
 
-    def navigate(self, source, target, offset=1, ignore_dropoff=False, cheapest=True):
-        direction = self.dijkstra_a_to_b(source, target, offset=offset, cheapest=cheapest)
+    def navigate(self, source, target, offset=1, ignore_dropoff=False, cheapest=True, ignore_enemies=False):
+        direction = self.dijkstra_a_to_b(source, target, offset=offset, cheapest=cheapest, ignore_enemies=ignore_enemies)
         new_position = source.directional_offset(direction)
       # logging.debug(f"#{self[source].ship.id} || source: {source} and target: {target} and new position: {new_position}")
 
@@ -284,7 +285,7 @@ class GameMap:
                     structures.append(structure)
         return structures
 
-    def dijkstra_a_to_b(self, source, target, offset=1, cheapest=True):
+    def dijkstra_a_to_b(self, source, target, offset=1, cheapest=True, ignore_enemies=False):
         if source == target:
             return Direction.Still
 
@@ -347,7 +348,9 @@ class GameMap:
                     neighbour = self[pos]
 
                     # Calculate the cost of traveling to that neighbour
-                    if (neighbour.is_occupied and neighbour.ship.owner != self.me) or neighbour.is_claimed or neighbour.has_structure:
+                    if (neighbour.is_occupied and neighbour.ship.owner != self.me and not ignore_enemies) or \
+                            neighbour.is_claimed or \
+                            neighbour.has_structure:
                         neighbour_weight = constants.INF
                     else:
                         if cheapest:
@@ -481,8 +484,13 @@ class GameMap:
         # Recalculating max_halite in field
         self.max_halite = 0  # Reset
         self.total_halite = 0  # Reset
+        self.enemy_dropoffs = []
 
         for y in range(self.height):
             for x in range(self.width):
-                self.max_halite = max(self.max_halite, self[Position(x, y)].halite_amount)
-                self.total_halite += self[Position(x, y)].halite_amount
+                pos = Position(x, y)
+                cell = self[pos]
+                self.max_halite = max(self.max_halite, cell.halite_amount)
+                self.total_halite += cell.halite_amount
+                if cell.has_structure and cell.structure.owner != self.me:
+                    self.enemy_dropoffs.append(pos)
