@@ -347,7 +347,7 @@ class GameMap:
                     neighbour = self[pos]
 
                     # Calculate the cost of traveling to that neighbour
-                    if (neighbour.is_occupied and neighbour.ship.owner != self.me) or neighbour.is_claimed:
+                    if (neighbour.is_occupied and neighbour.ship.owner != self.me) or neighbour.is_claimed or neighbour.has_structure:
                         neighbour_weight = constants.INF
                     else:
                         if cheapest:

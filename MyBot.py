@@ -284,7 +284,7 @@ def resolve_tasks(ships):
                 ship.set_task(Task.EndgameHunt)
                 hunting_ships.append(ship)
 
-        elif ship.halite_amount >= 0.9 * constants.MAX_HALITE or (ship.task == Task.Deposit and ship.position != me.shipyard.position):
+        elif ship.halite_amount >= 0.95 * constants.MAX_HALITE or (ship.task == Task.Deposit and ship.position != me.shipyard.position):
             ship.set_task(Task.Deposit)
             deposit_ships.append(ship)
 
@@ -308,6 +308,8 @@ while True:
     # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
+
+    collect_data(f"frames/{game.turn_number:03}")
     # collect_data("distance_vs_halite")
     # time.sleep(3)
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
@@ -325,7 +327,7 @@ while True:
     if claimed_by_four:
         logging.debug(f"Claimed by four!")
 
-    if not claimed_by_four and game_map.total_halite / max(len(me.get_ships()), 1) > 6000 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and not game_map[me.shipyard].is_claimed and game.turn_number <= constants.MAX_TURNS - 150:
+    if not claimed_by_four and game_map.total_halite / max(len(me.get_ships()), 1) > 6000 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and not game_map[me.shipyard].is_claimed and game.turn_number <= ceil(0.66 * constants.MAX_TURNS):
         command_queue.append(me.shipyard.spawn())
 
     # Send your moves back to the game environment, ending this turn.
