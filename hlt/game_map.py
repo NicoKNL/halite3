@@ -188,9 +188,10 @@ class GameMap:
 
         if self[new_position].is_claimed: # and not direction == Direction.Still:
             pass
-          # logging.debug(f"    #{ship.id} is trying to claim: {new_position} but already claimed by: {self[new_position].claim}")
+            # logging.debug(f"    #{ship.id} is trying to claim: {new_position} but already claimed by: {self[new_position].claim}")
             # raise RuntimeError("Already claimed!")
         self[new_position].mark_claimed(ship)
+        ship.set_next_move(direction)
 
     def naive_navigate(self, ship, destination):
         """
@@ -213,7 +214,7 @@ class GameMap:
     def navigate(self, source, target, offset=1, ignore_dropoff=False, cheapest=True, ignore_enemies=False):
         direction = self.dijkstra_a_to_b(source, target, offset=offset, cheapest=cheapest, ignore_enemies=ignore_enemies)
         new_position = source.directional_offset(direction)
-      # logging.debug(f"#{self[source].ship.id} || source: {source} and target: {target} and new position: {new_position}")
+        # logging.debug(f"#{self[source].ship.id} || source: {source} and target: {target} and new position: {new_position}")
 
         structures = self.get_neighbouring_structures(new_position, friendly=True, enemy=ignore_dropoff)
         structure_positions = [s.position for s in structures]
@@ -382,7 +383,7 @@ class GameMap:
     def safe_greedy_move(self, source, target):
         safe_moves = []
 
-        if not self[source].is_claimed:
+        if not self[source].is_claimed and not self[source].has_structure:
             safe_moves.append(Direction.Still)
 
         # Evaluate if any of the cardinal directions are safe

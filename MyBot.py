@@ -1,76 +1,35 @@
-#!/usr/bin/env python3
-# Python 3.6
-
-# Import the Halite SDK, which will let you interact with the game.
-import hlt
-from hlt.task import Task
-# This library contains constant values.
-from hlt import constants
+import logging
 import time
 import os
 import numpy as np
-
-# This library contains direction metadata to better interface with the game.
-from hlt.positionals import Direction, Position
-
-# This library allows you to generate random numbers.
 import random
-from math import ceil, sqrt
+from math import ceil, floor
 
-# Logging allows you to save messages for yourself. This is required because the regular STDOUT
-#   (print statements) are reserved for the engine-bot communication.
-import logging
-""" <<<Game Begin>>> """
+import hlt
+from hlt.task import Task
+from hlt import constants
+from hlt.positionals import Direction, Position
+from hlt.utils import save_data, collect_data
 
-# This game object contains the initial game state.
-game = hlt.Game()
+game = hlt.Game()  # This game object contains the initial game state.
+
+###################################
+#                                 #
+#       Pre-processing area       #
+#                                 #
+###################################
+
 # At this point "game" variable is populated with initial map data.
 # This is a good place to do computationally expensive start-up pre-processing.
-# As soon as you call "ready" function below, the 2 second per turn timer will start.
-game.ready("DEV")
-
-# Now that your bot is initialized, save a message to yourself in the log file with some important information.
-#   Here, you log here your id, which you can always fetch from the game object by using my_id.
-logging.info("Successfully created bot! My Player ID is {}.".format(game.my_id))
 
 
-def save_data(file_name, **kwargs):
-    np.savez(f"{os.path.join(os.getcwd(), 'datasets')}{os.sep}{file_name}.npz", **kwargs)
+##########################################
+#                                        #
+#       End of Pre-processing area       #
+#                                        #
+##########################################
 
-
-def collect_data(file_name):
-    global game_map
-    global me
-
-    halite = []
-    distance = []
-    penalized = []
-
-    for y in range(game_map.height):
-        halite_row = []
-        distance_row = []
-        penalized_row = []
-        for x in range(game_map.width):
-            pos = Position(x, y)
-            cell = game_map[pos]
-
-            # Halite amount
-            halite_row.append(cell.halite_amount)
-
-            # Distance
-            cell_dist = max(0.00000001, game_map.calculate_distance(me.shipyard.position, pos) / game_map.width)
-            distance_row.append(cell_dist)
-
-            # Halite penalized for distance
-            penalized_halite = cell.halite_amount * (1 / cell_dist)  #(1 - pow(cell_dist, 0.1))
-            penalized_row.append(penalized_halite)
-
-        # appending the rows to the main data arrays
-        halite.append(halite_row)
-        distance.append(distance_row)
-        penalized.append(penalized_row)
-
-    np.savez(f"{os.path.join(os.getcwd(), 'datasets')}{os.sep}{file_name}.npz", halite=halite, distance=distance, penalized=penalized)
+game.ready("DEV")  # Starts the 2 second per turn timer
 
 
 def swarm_closest_enemy_dropoff(ships):
@@ -156,14 +115,11 @@ def weighted_cleanup2(ships):
 
 def evaluate_can_move(ships):
     global game_map
-    global command_queue
 
     ignored_ships = []
     for ship in ships:
         if not game_map[ship].can_move():
-            move = ship.stay_still()
             game_map.register_move(ship, Direction.Still)
-            command_queue.append(move)
         else:
             ignored_ships.append(ship)
 
@@ -172,7 +128,6 @@ def evaluate_can_move(ships):
 
 def evaluate_should_move(ships):
     global game_map
-    global command_queue
 
     minimum = 50
     average_halite_on_map = game_map.total_halite / (game_map.width * game_map.height)
@@ -182,9 +137,7 @@ def evaluate_should_move(ships):
     ignored_ships = []
     for ship in ships:
         if not ship.task in [Task.EndgameHunt, Task.Deposit] and not game_map[ship].should_move(minimum):
-            move = ship.stay_still()
             game_map.register_move(ship, Direction.Still)
-            command_queue.append(move)
         else:
             ignored_ships.append(ship)
 
@@ -193,7 +146,6 @@ def evaluate_should_move(ships):
 
 def evaluate_other(ships):
     global game_map
-    global command_queue
 
     first_movers, gather_ships, deposit_ships, suicide_ships, hunting_ships = resolve_tasks(ships)
 
@@ -211,19 +163,15 @@ def evaluate_other(ships):
         # direction = game_map.safe_adjacent_move(ship.position)
 
       # logging.debug(f"DIRECTION FIRST MOVER: {direction}")
-        move = ship.move(direction)
         game_map.register_move(ship, direction)
-        command_queue.append(move)
 
     for ship in sorted(deposit_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
                        reverse=False):
       # logging.debug(f"# {ship.id} ---------------- deposit ")
         target = me.shipyard.position
-        direction = game_map.navigate(ship.position, target, offset=1)
-        move = ship.move(direction)
+        direction = game_map.navigate(ship.position, target, offset=0)
         game_map.register_move(ship, direction)
-        command_queue.append(move)
 
     for ship in sorted(suicide_ships,
                        key=lambda ship: game_map.calculate_distance(me.shipyard.position, ship.position),
@@ -232,9 +180,7 @@ def evaluate_other(ships):
 
         target = me.shipyard.position
         direction = game_map.navigate(ship.position, target, offset=1, ignore_dropoff=True)
-        move = ship.move(direction)
         game_map.register_move(ship, direction)
-        command_queue.append(move)
 
     attack_targets = dict()
     if hunting_ships:
@@ -251,9 +197,7 @@ def evaluate_other(ships):
             direction = Direction.Still
         else:
             direction = game_map.navigate(ship.position, target, offset=1, ignore_enemies=True)
-        move = ship.move(direction)
         game_map.register_move(ship, direction)
-        command_queue.append(move)
 
     targets = []
     if gather_ships:
@@ -268,9 +212,7 @@ def evaluate_other(ships):
             direction = Direction.Still
         else:
             direction = game_map.navigate(ship.position, target, offset=1, cheapest=False)
-        move = ship.move(direction)
         game_map.register_move(ship, direction)
-        command_queue.append(move)
 
 
 def is_in_endgame(ship, cutoff):
@@ -330,43 +272,49 @@ def resolve_tasks(ships):
     return first_movers, gather_ships, deposit_ships, suicide_ships, hunting_ships
 
 
+def execute_moves(ships):
+    command_queue = []
+
+    for ship in ships:
+        command_queue.append(ship.move(ship.next_move))
+
+    return command_queue
+
 """ <<<Game Loop>>> """
 while True:
-    # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
-    #   running update_frame().
-    start = time.time()
+    start = time.time()  # For timing the loop
+
     game.update_frame()
-    # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
 
-    """ COLLECTING DATA """
-    # collect_data(f"frames/{game.turn_number:03}")
+    game_map.reset_claims()
 
-    # collect_data("distance_vs_halite")
-    # time.sleep(3)
-    # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
-    #   end of the turn.
     command_queue = []
+    ships = me.get_ships()
+    logging.debug(f"Number of ships: {len(ships)}")
+    # if game.turn_number == 6:
+    #     time.sleep(3)
+    ######################################
+    #       FIRST SPAWN SHIPS ASAP       #
+    ######################################
+    claimed_by_four = sum([game_map[p].is_claimed for p in me.shipyard.position.get_surrounding_cardinals()]) == 4
+    if claimed_by_four:
+        logging.debug(f"Claimed by four!")
+
+    if not claimed_by_four and game_map.total_halite / max(len(me.get_ships()), 1) > 4000 and me.halite_amount >= constants.SHIP_COST and game.turn_number <= ceil(0.66 * constants.MAX_TURNS):
+        command_queue.append(me.shipyard.spawn())
+        game_map[me.shipyard].claim = True
 
     ships = me.get_ships()
     ships = evaluate_can_move(ships)
     ships = evaluate_should_move(ships)
     evaluate_other(ships)
 
-    # If the game is in the first 200 turns and you have enough halite, spawn a ship.
-    # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    claimed_by_four = sum([game_map[p].is_claimed for p in me.shipyard.position.get_surrounding_cardinals()]) == 4
-    if claimed_by_four:
-        logging.debug(f"Claimed by four!")
-
-    if not claimed_by_four and game_map.total_halite / max(len(me.get_ships()), 1) > 4000 and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied and not game_map[me.shipyard].is_claimed and game.turn_number <= ceil(0.66 * constants.MAX_TURNS):
-        command_queue.append(me.shipyard.spawn())
-
     # Send your moves back to the game environment, ending this turn.
-    game_map.reset_claims()
+    command_queue.extend(execute_moves(me.get_ships()))
     game.end_turn(command_queue)
-    logging.warning(f"{time.time() - start} seconds")
+    logging.debug(f"{time.time() - start} seconds")
 
 
 

@@ -1,4 +1,5 @@
 import abc
+import logging
 
 from . import commands, constants
 from .positionals import Direction, Position
@@ -63,9 +64,13 @@ class Ship(Entity):
         super().__init__(owner, id, position)
         self.halite_amount = halite_amount
         self.task = Task.Gather
+        self.next_move = None
 
     def set_task(self, task):
         self.task = task
+
+    def set_next_move(self, direction):
+        self.next_move = direction
 
     @property
     def is_full(self):
@@ -81,6 +86,7 @@ class Ship(Entity):
         Return a move to move this ship in a direction without
         checking for collisions.
         """
+        logging.debug(f"# {self.id} || {self.position} || {self.next_move} || {self.task}")
         raw_direction = direction
         if not isinstance(direction, str) or direction not in "nsewo":
             raw_direction = Direction.convert(direction)
